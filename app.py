@@ -7,19 +7,19 @@ from io import BytesIO
 import gdown
 
 # ---------------- PAGE CONFIG ----------------
-st.set_page_config(page_title="BUFFER STOCK MANAGEMENT SYSTEM v2.4", layout="wide")
+st.set_page_config(page_title="BUFFER STOCK MANAGEMENT SYSTEM v2.3", layout="wide")
 
 # ---------------- STYLE ----------------
 st.markdown("""
 <style>
 .card {
-    background: rgba(255,255,255,0.95);
-    padding: 20px;
-    border-radius: 14px;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    background: rgba(255,255,255,0.92);
+    padding: 25px;
+    border-radius: 16px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.12);
     margin-bottom: 20px;
 }
-.header { font-size: 26px; font-weight: 700; }
+.header { font-size: 28px; font-weight: 700; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -37,43 +37,14 @@ BUFFER_URL = f"https://drive.google.com/uc?id={BUFFER_FILE_ID}"
 LOG_URL = f"https://drive.google.com/uc?id={LOG_FILE_ID}"
 
 def download_from_drive(url, path):
-    try:
-        gdown.download(url, path, quiet=True)
-    except:
-        pass
+    if not os.path.exists(path):
+        gdown.download(url, path, quiet=False)
 
 download_from_drive(BUFFER_URL, BUFFER_FILE)
 download_from_drive(LOG_URL, LOG_FILE)
 
-# ---------------- LOAD DATA SAFE ----------------
-def load_buffer():
-    if not os.path.exists(BUFFER_FILE):
-        return pd.DataFrame()
-    df = pd.read_excel(BUFFER_FILE)
-    if "GOOD QTY." in df.columns:
-        df["GOOD QTY."] = pd.to_numeric(df["GOOD QTY."], errors="coerce").fillna(0)
-    return df
-
-def load_log():
-    if not os.path.exists(LOG_FILE):
-        return pd.DataFrame()
-    df = pd.read_excel(LOG_FILE)
-    for c in ["IN QTY", "OUT QTY"]:
-        if c in df.columns:
-            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
-    if "DATE" in df.columns:
-        df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce")
-    return df
-
-buffer_df = load_buffer()
-log_df = load_log()
-
-# ---------------- EXCEL EXPORT ----------------
-def to_excel(df):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False)
-    return output.getvalue()
+# ---------------- CONSTANTS ----------------
+OPERATOR_NAME = "Santosh Kumar"
 
 # ---------------- LOGIN ----------------
 if "login" not in st.session_state:
@@ -89,10 +60,35 @@ if not st.session_state.login:
             st.session_state.login = True
             st.session_state.user = user
             st.session_state.role = role
-            st.rerun()
+            st.experimental_rerun()
         else:
             st.error("❌ INVALID LOGIN")
     st.stop()
+
+# ---------------- LOAD DATA ----------------
+@st.cache_data
+def load_buffer():
+    df = pd.read_excel(BUFFER_FILE)
+    df["GOOD QTY."] = pd.to_numeric(df["GOOD QTY."], errors="coerce").fillna(0)
+    return df
+
+@st.cache_data
+def load_log():
+    df = pd.read_excel(LOG_FILE)
+    df["IN QTY"] = pd.to_numeric(df["IN QTY"], errors="coerce").fillna(0)
+    df["OUT QTY"] = pd.to_numeric(df["OUT QTY"], errors="coerce").fillna(0)
+    df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce")
+    return df
+
+buffer_df = load_buffer()
+log_df = load_log()
+
+# ---------------- EXCEL DOWNLOAD ----------------
+def to_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
+    return output.getvalue()
 
 # ---------------- SIDEBAR ----------------
 st.sidebar.success(f"USER : {st.session_state.user}")
@@ -100,27 +96,22 @@ st.sidebar.info(f"ROLE : {st.session_state.role}")
 menu = st.sidebar.radio("MENU", ["DASHBOARD", "FULL BUFFER STOCK", "STOCK IN", "STOCK OUT", "REPORT"])
 if st.sidebar.button("LOGOUT"):
     st.session_state.clear()
-    st.rerun()
+    st.experimental_rerun()
 
 # ================= DASHBOARD =================
 if menu == "DASHBOARD":
     st.markdown("<div class='card'><div class='header'>📊 Dashboard</div></div>", unsafe_allow_html=True)
-
-    total_stock = int(buffer_df["GOOD QTY."].sum()) if not buffer_df.empty else 0
-    total_in = int(log_df["IN QTY"].sum()) if not log_df.empty else 0
-    total_out = int(log_df["OUT QTY"].sum()) if not log_df.empty else 0
-
     c1, c2, c3 = st.columns(3)
-    c1.metric("TOTAL STOCK", total_stock)
-    c2.metric("TOTAL IN", total_in)
-    c3.metric("TOTAL OUT", total_out)
+    c1.metric("TOTAL STOCK", int(buffer_df["GOOD QTY."].sum()))
+    c2.metric("TOTAL IN", int(log_df["IN QTY"].sum()))
+    c3.metric("TOTAL OUT", int(log_df["OUT QTY"].sum()))
 
-    st.subheader(⚠️ LOW STOCK ALERT")
-    if not buffer_df.empty:
-        low = buffer_df[buffer_df["GOOD QTY."] < 5]
+    st.subheader("⚠️ LOW STOCK ALERT")
+    low = buffer_df[buffer_df["GOOD QTY."] < 5]
+    if not low.empty:
         st.dataframe(low, use_container_width=True)
     else:
-        st.info("No data found")
+        st.success("All stocks are sufficient ✅")
 
 # ================= FULL BUFFER =================
 elif menu == "FULL BUFFER STOCK":
@@ -131,19 +122,22 @@ elif menu == "FULL BUFFER STOCK":
 # ================= STOCK IN =================
 elif menu == "STOCK IN":
     st.markdown("<div class='card'><h3>➕ STOCK IN</h3></div>", unsafe_allow_html=True)
-
     part = st.selectbox("PART CODE", buffer_df["PART CODE"].unique())
-    idx = buffer_df.index[buffer_df["PART CODE"] == part][0]
-
+    row = buffer_df[buffer_df["PART CODE"] == part].iloc[0]
     qty = st.number_input("IN QTY", min_value=1, step=1)
+
     if st.button("ADD STOCK"):
+        idx = buffer_df.index[buffer_df["PART CODE"] == part][0]
         prev = buffer_df.at[idx, "GOOD QTY."]
         buffer_df.at[idx, "GOOD QTY."] += qty
         buffer_df.to_excel(BUFFER_FILE, index=False)
 
         log_df.loc[len(log_df)] = [
             datetime.today(), datetime.now().strftime("%H:%M:%S"),
-            part, prev, qty, 0, prev + qty, st.session_state.user
+            datetime.today().strftime("%B"), datetime.today().isocalendar()[1],
+            "", "", row.get("BASE (LOCAL LANGUAGE)", ""), row.get("MATERIAL DESCRIPTION (CHINA)", ""),
+            row.get("TYPES", ""), part, prev, qty, 0, prev + qty,
+            "", OPERATOR_NAME, OPERATOR_NAME, "", "", st.session_state.user
         ]
         log_df.to_excel(LOG_FILE, index=False)
         st.success("✅ STOCK IN UPDATED")
@@ -151,7 +145,6 @@ elif menu == "STOCK IN":
 # ================= STOCK OUT =================
 elif menu == "STOCK OUT":
     st.markdown("<div class='card'><h3>➖ STOCK OUT</h3></div>", unsafe_allow_html=True)
-
     part = st.selectbox("PART CODE", buffer_df["PART CODE"].unique())
     idx = buffer_df.index[buffer_df["PART CODE"] == part][0]
     current = int(buffer_df.at[idx, "GOOD QTY."])
@@ -161,10 +154,15 @@ elif menu == "STOCK OUT":
         if st.button("REMOVE STOCK"):
             buffer_df.at[idx, "GOOD QTY."] -= qty
             buffer_df.to_excel(BUFFER_FILE, index=False)
-
+            
+            # Update log
+            row = buffer_df.loc[idx]
             log_df.loc[len(log_df)] = [
                 datetime.today(), datetime.now().strftime("%H:%M:%S"),
-                part, current, 0, qty, current - qty, st.session_state.user
+                datetime.today().strftime("%B"), datetime.today().isocalendar()[1],
+                "", "", row.get("BASE (LOCAL LANGUAGE)", ""), row.get("MATERIAL DESCRIPTION (CHINA)", ""),
+                row.get("TYPES", ""), part, current, 0, qty, current - qty,
+                "", OPERATOR_NAME, OPERATOR_NAME, "", "", st.session_state.user
             ]
             log_df.to_excel(LOG_FILE, index=False)
             st.success("✅ STOCK OUT UPDATED")
