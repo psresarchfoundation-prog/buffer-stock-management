@@ -9,7 +9,7 @@ import gdown
 # =========================================================
 # PAGE CONFIG
 # =========================================================
-st.set_page_config("BUFFER STOCK MANAGEMENT SYSTEM v3.1", layout="wide")
+st.set_page_config("BUFFER STOCK MANAGEMENT SYSTEM v3.3", layout="wide")
 
 # =========================================================
 # STYLE
@@ -28,13 +28,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# MASTER DATA (DEFAULT)
+# MASTER DATA
 # =========================================================
 DELIVERY_TAT = ["Same Day", "24 Hours", "48 Hours", "72 Hours"]
-MATERIAL_BASE = ["Warehouse", "Assembly", "Testing", "Repair", "Production"]
-APPLICANT_HOD = ["Mr. Rishu Khanna", "Mr. Ajay Kumar", "Mr. Sandeep Singh"]
-HANDOVER_PERSON = ["Santosh Kumar", "Rohit Verma", "Amit Yadav"]
-FLOOR_LIST = ["Ground Floor", "1st Floor", "2nd Floor", "3rd Floor"]
+APPLICANT_HOD = ["Rajkumar", "Ajay Kumar", "Sandeep Singh"]
+HANDOVER_PERSON = ["Shekhar", "Rohit Verma", "Amit Yadav"]
+DEFAULT_FLOOR = "L4"
 
 # =========================================================
 # FILE CONFIG
@@ -44,9 +43,6 @@ BUFFER_FILE = f"{DATA_DIR}/buffer_stock.xlsx"
 LOG_FILE = f"{DATA_DIR}/in_out_log.xlsx"
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# =========================================================
-# GOOGLE DRIVE
-# =========================================================
 BUFFER_FILE_ID = "16qT02u7QKi7GrDHwczq99OjhCsFyay_h"
 LOG_FILE_ID = "1ThuZsaJsunOs46-teJTkgLs9KkctNwhS"
 
@@ -98,19 +94,6 @@ def load_log():
 
 buffer_df = load_buffer()
 log_df = load_log()
-
-# =========================================================
-# SELECT OR ADD (AUTO FROM EXCEL)
-# =========================================================
-def select_or_add(label, default_list, df, col):
-    excel_vals = []
-    if col in df.columns:
-        excel_vals = df[col].dropna().astype(str).unique().tolist()
-    values = sorted(set(default_list + excel_vals))
-    choice = st.selectbox(label, values + ["➕ Add New"])
-    if choice == "➕ Add New":
-        return st.text_input(f"Enter {label}")
-    return choice
 
 # =========================================================
 # EXCEL DOWNLOAD
@@ -166,75 +149,87 @@ elif menu == "FULL BUFFER STOCK":
 # STOCK IN
 # =========================================================
 elif menu == "STOCK IN":
-    with st.container():
-        part = st.selectbox("PART CODE", buffer_df["PART CODE"].dropna().unique())
-        idx = buffer_df.index[buffer_df["PART CODE"] == part][0]
-        current = int(buffer_df.at[idx, "GOOD QTY."])
-        st.info(f"CURRENT STOCK : {current}")
+    part = st.selectbox("PART CODE", buffer_df["PART CODE"].dropna().unique())
+    row = buffer_df[buffer_df["PART CODE"] == part].iloc[0]
+    current = int(row["GOOD QTY."])
 
-        qty = st.number_input("IN QTY", min_value=1, step=1)
-        tat = select_or_add("DELIVERY TAT", DELIVERY_TAT, log_df, "DELIVERY TAT")
-        base = select_or_add("MATERIAL ASSIGNING BASE", MATERIAL_BASE, log_df, "MATERIAL ASSIGNING BASE")
-        hod = select_or_add("APPLICANT HOD", APPLICANT_HOD, log_df, "APPLICANT HOD")
-        hand = select_or_add("HANDOVER PERSON", HANDOVER_PERSON, log_df, "HANDOVER PERSON")
-        floor = select_or_add("FLOOR", FLOOR_LIST, log_df, "FLOOR")
-        remark = st.text_area("REMARK")
+    st.info(f"CURRENT STOCK : {current}")
 
-        if st.button("✅ ADD STOCK"):
-            buffer_df.at[idx, "GOOD QTY."] += qty
-            buffer_df.to_excel(BUFFER_FILE, index=False)
+    qty = st.number_input("IN QTY", min_value=1, step=1)
+    tat = st.selectbox("DELIVERY TAT", DELIVERY_TAT)
 
-            log_df.loc[len(log_df)] = [
-                datetime.today(), datetime.today().strftime("%B"),
-                datetime.today().isocalendar()[1], "",
-                tat, base, "", "IN",
-                part, current, qty, 0, current + qty,
-                hod, hand, st.session_state.user,
-                floor, remark, st.session_state.user
-            ]
-            log_df.to_excel(LOG_FILE, index=False)
-            st.cache_data.clear()
-            st.success("STOCK IN SUCCESS")
-            st.rerun()
+    st.text_input("MATERIAL ASSIGNING BASE", row["MATERIAL ASSIGNING BASE"], disabled=True)
+    st.text_input("DESCRIPTION", row["DESCRIPTION"], disabled=True)
+    st.text_input("TYPE", row["TYPE"], disabled=True)
+
+    hod = st.selectbox("APPLICANT HOD", APPLICANT_HOD)
+    hand = st.selectbox("HANDOVER PERSON", HANDOVER_PERSON)
+    st.text_input("FLOOR", DEFAULT_FLOOR, disabled=True)
+    remark = st.text_area("REMARK")
+
+    if st.button("✅ ADD STOCK"):
+        buffer_df.loc[buffer_df["PART CODE"] == part, "GOOD QTY."] += qty
+        buffer_df.to_excel(BUFFER_FILE, index=False)
+
+        log_df.loc[len(log_df)] = [
+            datetime.today(), datetime.today().strftime("%Y-%m"),
+            datetime.today().isocalendar()[1], "",
+            tat, row["MATERIAL ASSIGNING BASE"],
+            row["DESCRIPTION"], row["TYPE"],
+            part, current, qty, 0, current + qty,
+            hod, hand, st.session_state.user,
+            DEFAULT_FLOOR, remark, st.session_state.user
+        ]
+
+        log_df.to_excel(LOG_FILE, index=False)
+        st.cache_data.clear()
+        st.success("STOCK IN SUCCESS")
+        st.rerun()
 
 # =========================================================
 # STOCK OUT
 # =========================================================
 elif menu == "STOCK OUT":
-    with st.container():
-        part = st.selectbox("PART CODE", buffer_df["PART CODE"].dropna().unique())
-        idx = buffer_df.index[buffer_df["PART CODE"] == part][0]
-        current = int(buffer_df.at[idx, "GOOD QTY."])
-        st.info(f"CURRENT STOCK : {current}")
+    part = st.selectbox("PART CODE", buffer_df["PART CODE"].dropna().unique())
+    row = buffer_df[buffer_df["PART CODE"] == part].iloc[0]
+    current = int(row["GOOD QTY."])
 
-        if current <= 0:
-            st.warning("NO STOCK AVAILABLE")
-            st.stop()
+    st.info(f"CURRENT STOCK : {current}")
 
-        qty = st.number_input("OUT QTY", min_value=1, max_value=current, step=1)
-        tat = select_or_add("DELIVERY TAT", DELIVERY_TAT, log_df, "DELIVERY TAT")
-        base = select_or_add("MATERIAL ASSIGNING BASE", MATERIAL_BASE, log_df, "MATERIAL ASSIGNING BASE")
-        hod = select_or_add("APPLICANT HOD", APPLICANT_HOD, log_df, "APPLICANT HOD")
-        hand = select_or_add("HANDOVER PERSON", HANDOVER_PERSON, log_df, "HANDOVER PERSON")
-        floor = select_or_add("FLOOR", FLOOR_LIST, log_df, "FLOOR")
-        remark = st.text_area("REMARK")
+    if current <= 0:
+        st.warning("NO STOCK AVAILABLE")
+        st.stop()
 
-        if st.button("❌ REMOVE STOCK"):
-            buffer_df.at[idx, "GOOD QTY."] -= qty
-            buffer_df.to_excel(BUFFER_FILE, index=False)
+    qty = st.number_input("OUT QTY", min_value=1, max_value=current, step=1)
+    tat = st.selectbox("DELIVERY TAT", DELIVERY_TAT)
 
-            log_df.loc[len(log_df)] = [
-                datetime.today(), datetime.today().strftime("%B"),
-                datetime.today().isocalendar()[1], "",
-                tat, base, "", "OUT",
-                part, current, 0, qty, current - qty,
-                hod, hand, st.session_state.user,
-                floor, remark, st.session_state.user
-            ]
-            log_df.to_excel(LOG_FILE, index=False)
-            st.cache_data.clear()
-            st.success("STOCK OUT SUCCESS")
-            st.rerun()
+    st.text_input("MATERIAL ASSIGNING BASE", row["MATERIAL ASSIGNING BASE"], disabled=True)
+    st.text_input("DESCRIPTION", row["DESCRIPTION"], disabled=True)
+    st.text_input("TYPE", row["TYPE"], disabled=True)
+
+    hod = st.selectbox("APPLICANT HOD", APPLICANT_HOD)
+    hand = st.selectbox("HANDOVER PERSON", HANDOVER_PERSON)
+    st.text_input("FLOOR", DEFAULT_FLOOR, disabled=True)
+    remark = st.text_area("REMARK")
+
+    if st.button("❌ REMOVE STOCK"):
+        buffer_df.loc[buffer_df["PART CODE"] == part, "GOOD QTY."] -= qty
+        buffer_df.to_excel(BUFFER_FILE, index=False)
+
+        log_df.loc[len(log_df)] = [
+            datetime.today(), datetime.today().strftime("%Y-%m"),
+            datetime.today().isocalendar()[1], "",
+            tat, row["MATERIAL ASSIGNING BASE"],
+            row["DESCRIPTION"], row["TYPE"],
+            part, current, 0, qty, current - qty,
+            hod, hand, st.session_state.user,
+            DEFAULT_FLOOR, remark, st.session_state.user
+        ]
+
+        log_df.to_excel(LOG_FILE, index=False)
+        st.cache_data.clear()
+        st.success("STOCK OUT SUCCESS")
+        st.rerun()
 
 # =========================================================
 # REPORT
