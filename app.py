@@ -7,7 +7,7 @@ from gspread_dataframe import set_with_dataframe, get_as_dataframe
 from google.oauth2.service_account import Credentials
 
 # ---------------- PAGE CONFIG ----------------
-st.set_page_config(page_title="BUFFER STOCK MANAGEMENT SYSTEM v3.5", layout="wide")
+st.set_page_config(page_title="BUFFER STOCK MANAGEMENT SYSTEM v3.6", layout="wide")
 
 # ---------------- STYLE ----------------
 st.markdown("""
@@ -18,16 +18,18 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------- GOOGLE SHEET AUTH ----------------
-scope = ["https://spreadsheets.google.com/feeds",'https://www.googleapis.com/auth/spreadsheets',
-         "https://www.googleapis.com/auth/drive.file","https://www.googleapis.com/auth/drive"]
+scope = ["https://spreadsheets.google.com/feeds",
+         'https://www.googleapis.com/auth/spreadsheets',
+         "https://www.googleapis.com/auth/drive.file",
+         "https://www.googleapis.com/auth/drive"]
 
 creds_dict = st.secrets["gcp_service_account"]
 creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
 gc = gspread.authorize(creds)
 
 # ---------------- SHEET LINKS ----------------
-BUFFER_SHEET_URL = "https://docs.google.com/spreadsheets/d/16qT02u7QKi7GrDHwczq99OjhCsFyay_h/edit?usp=sharing"
-LOG_SHEET_URL = "https://docs.google.com/spreadsheets/d/1ThuZsaJsunOs46-teJTkgLs9KkctNwhS/edit?usp=sharing"
+BUFFER_SHEET_URL = "YOUR_BUFFER_SHEET_URL"
+LOG_SHEET_URL = "YOUR_LOG_SHEET_URL"
 
 buffer_ws = gc.open_by_url(BUFFER_SHEET_URL).sheet1
 log_ws = gc.open_by_url(LOG_SHEET_URL).sheet1
@@ -86,28 +88,34 @@ elif menu=="STOCK IN":
     st.markdown("<div class='card'><h3>STOCK IN</h3></div>", unsafe_allow_html=True)
     part = st.selectbox("PART CODE", buffer_df["PART CODE"].dropna().unique())
     row = buffer_df[buffer_df["PART CODE"]==part].iloc[0]
+
     st.text_input("BASE", row["BASE (LOCAL LANGUAGE)"], disabled=True)
     st.text_input("DESCRIPTION", row["MATERIAL DESCRIPTION (CHINA)"], disabled=True)
     st.text_input("TYPE", row["TYPES"], disabled=True)
+
     current = int(row["GOOD QTY."])
     st.info(f"CURRENT STOCK : {current}")
+
     qty = st.number_input("IN QTY", min_value=1, step=1)
     gate = st.text_input("GATE PASS NO")
+
     delivery_list = buffer_df["DELIVERY TAT"].dropna().unique().tolist()
     delivery_list.append("Other")
     tat = st.selectbox("DELIVERY TAT", delivery_list)
     tat_remark = st.text_input("Delivery Remark") if tat=="Other" else tat
+
     applicant_option = st.selectbox("APPLICANT HOD", HOD_LIST)
     applicant = st.text_input("Enter Applicant HOD") if applicant_option=="Other" else applicant_option
+
     floor = st.selectbox("FLOOR", FLOOR_LIST)
     remark = st.text_input("REMARK")
+
     if st.button("ADD STOCK"):
         prev = current
-        # Update buffer sheet
         idx = buffer_df[buffer_df["PART CODE"]==part].index[0]
         buffer_df.at[idx, "GOOD QTY."] += qty
         set_with_dataframe(buffer_ws, buffer_df)
-        # Update log sheet
+
         new_row = {
             "DATE": datetime.now().date(),
             "MONTH": datetime.now().strftime("%B"),
@@ -138,11 +146,14 @@ elif menu=="STOCK OUT":
     st.markdown("<div class='card'><h3>STOCK OUT</h3></div>", unsafe_allow_html=True)
     part = st.selectbox("PART CODE", buffer_df["PART CODE"].dropna().unique())
     row = buffer_df[buffer_df["PART CODE"]==part].iloc[0]
+
     st.text_input("BASE", row["BASE (LOCAL LANGUAGE)"], disabled=True)
     st.text_input("DESCRIPTION", row["MATERIAL DESCRIPTION (CHINA)"], disabled=True)
     st.text_input("TYPE", row["TYPES"], disabled=True)
+
     current = int(row["GOOD QTY."])
     st.info(f"CURRENT STOCK : {current}")
+
     if current>0:
         qty = st.number_input("OUT QTY", min_value=1, max_value=current, step=1)
         gate = st.text_input("GATE PASS NO")
@@ -154,11 +165,13 @@ elif menu=="STOCK OUT":
         applicant = st.text_input("Enter Applicant HOD") if applicant_option=="Other" else applicant_option
         floor = st.selectbox("FLOOR", FLOOR_LIST)
         remark = st.text_input("REMARK")
+
         if st.button("REMOVE STOCK"):
             prev = current
             idx = buffer_df[buffer_df["PART CODE"]==part].index[0]
             buffer_df.at[idx, "GOOD QTY."] -= qty
             set_with_dataframe(buffer_ws, buffer_df)
+
             new_row = {
                 "DATE": datetime.now().date(),
                 "MONTH": datetime.now().strftime("%B"),
