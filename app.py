@@ -83,11 +83,106 @@ elif menu=="FULL BUFFER STOCK":
 
 # ---------------- STOCK IN ----------------
 elif menu=="STOCK IN":
-    # [STOCK IN LOGIC HERE: Same as earlier code]
+    st.markdown("<div class='card'><h3>STOCK IN</h3></div>", unsafe_allow_html=True)
+    part = st.selectbox("PART CODE", buffer_df["PART CODE"].dropna().unique())
+    row = buffer_df[buffer_df["PART CODE"]==part].iloc[0]
+    st.text_input("BASE", row["BASE (LOCAL LANGUAGE)"], disabled=True)
+    st.text_input("DESCRIPTION", row["MATERIAL DESCRIPTION (CHINA)"], disabled=True)
+    st.text_input("TYPE", row["TYPES"], disabled=True)
+    current = int(row["GOOD QTY."])
+    st.info(f"CURRENT STOCK : {current}")
+    qty = st.number_input("IN QTY", min_value=1, step=1)
+    gate = st.text_input("GATE PASS NO")
+    delivery_list = buffer_df["DELIVERY TAT"].dropna().unique().tolist()
+    delivery_list.append("Other")
+    tat = st.selectbox("DELIVERY TAT", delivery_list)
+    tat_remark = st.text_input("Delivery Remark") if tat=="Other" else tat
+    applicant_option = st.selectbox("APPLICANT HOD", HOD_LIST)
+    applicant = st.text_input("Enter Applicant HOD") if applicant_option=="Other" else applicant_option
+    floor = st.selectbox("FLOOR", FLOOR_LIST)
+    remark = st.text_input("REMARK")
+    if st.button("ADD STOCK"):
+        prev = current
+        idx = buffer_df[buffer_df["PART CODE"]==part].index[0]
+        buffer_df.at[idx, "GOOD QTY."] += qty
+        set_with_dataframe(buffer_ws, buffer_df)
+        new_row = {
+            "DATE": datetime.now().date(),
+            "MONTH": datetime.now().strftime("%B"),
+            "WEEK": datetime.now().isocalendar()[1],
+            "GATE PASS NO": gate,
+            "DELIVERY TAT": tat_remark if tat=="Other" else tat,
+            "MATERIAL ASSIGNING BASE": row["BASE (LOCAL LANGUAGE)"],
+            "DESCRIPTION": row["MATERIAL DESCRIPTION (CHINA)"],
+            "TYPE": row["TYPES"],
+            "PART CODE": part,
+            "PREVIOUS STOCK": prev,
+            "IN QTY": qty,
+            "OUT QTY": 0,
+            "BALANCE": prev+qty,
+            "APPLICANT HOD": applicant,
+            "HANDOVER PERSON": OPERATOR_NAME,
+            "OPERATOR": OPERATOR_NAME,
+            "FLOOR": floor,
+            "REMARK": remark,
+            "USER": st.session_state.get("user","TSD")
+        }
+        log_df.loc[len(log_df)] = new_row
+        set_with_dataframe(log_ws, log_df)
+        st.success("✅ STOCK IN UPDATED")
 
 # ---------------- STOCK OUT ----------------
 elif menu=="STOCK OUT":
-    # [STOCK OUT LOGIC HERE: Same as earlier code]
+    st.markdown("<div class='card'><h3>STOCK OUT</h3></div>", unsafe_allow_html=True)
+    part = st.selectbox("PART CODE", buffer_df["PART CODE"].dropna().unique())
+    row = buffer_df[buffer_df["PART CODE"]==part].iloc[0]
+    st.text_input("BASE", row["BASE (LOCAL LANGUAGE)"], disabled=True)
+    st.text_input("DESCRIPTION", row["MATERIAL DESCRIPTION (CHINA)"], disabled=True)
+    st.text_input("TYPE", row["TYPES"], disabled=True)
+    current = int(row["GOOD QTY."])
+    st.info(f"CURRENT STOCK : {current}")
+    if current>0:
+        qty = st.number_input("OUT QTY", min_value=1, max_value=current, step=1)
+        gate = st.text_input("GATE PASS NO")
+        delivery_list = buffer_df["DELIVERY TAT"].dropna().unique().tolist()
+        delivery_list.append("Other")
+        tat = st.selectbox("DELIVERY TAT", delivery_list)
+        tat_remark = tat if tat!="Other" else st.text_input("Delivery Remark")
+        applicant_option = st.selectbox("APPLICANT HOD", HOD_LIST)
+        applicant = st.text_input("Enter Applicant HOD") if applicant_option=="Other" else applicant_option
+        floor = st.selectbox("FLOOR", FLOOR_LIST)
+        remark = st.text_input("REMARK")
+        if st.button("REMOVE STOCK"):
+            prev = current
+            idx = buffer_df[buffer_df["PART CODE"]==part].index[0]
+            buffer_df.at[idx, "GOOD QTY."] -= qty
+            set_with_dataframe(buffer_ws, buffer_df)
+            new_row = {
+                "DATE": datetime.now().date(),
+                "MONTH": datetime.now().strftime("%B"),
+                "WEEK": datetime.now().isocalendar()[1],
+                "GATE PASS NO": gate,
+                "DELIVERY TAT": tat_remark,
+                "MATERIAL ASSIGNING BASE": row["BASE (LOCAL LANGUAGE)"],
+                "DESCRIPTION": row["MATERIAL DESCRIPTION (CHINA)"],
+                "TYPE": row["TYPES"],
+                "PART CODE": part,
+                "PREVIOUS STOCK": prev,
+                "IN QTY": 0,
+                "OUT QTY": qty,
+                "BALANCE": prev-qty,
+                "APPLICANT HOD": applicant,
+                "HANDOVER PERSON": OPERATOR_NAME,
+                "OPERATOR": OPERATOR_NAME,
+                "FLOOR": floor,
+                "REMARK": remark,
+                "USER": st.session_state.get("user","TSD")
+            }
+            log_df.loc[len(log_df)] = new_row
+            set_with_dataframe(log_ws, log_df)
+            st.success("✅ STOCK OUT UPDATED")
+    else:
+        st.warning("❌ CURRENT STOCK IS ZERO, CANNOT REMOVE STOCK")
 
 # ---------------- REPORT ----------------
 elif menu=="REPORT":
