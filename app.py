@@ -16,21 +16,19 @@ st.set_page_config(
 )
 
 # =========================================================
-# GLOBAL STYLE (Professional)
+# STYLE
 # =========================================================
 st.markdown("""
 <style>
-body {background-color:#f5f7fa;}
+body {background:#f4f6f9;}
 .card {
     background:white;
-    padding:22px;
+    padding:20px;
     border-radius:14px;
-    box-shadow:0 6px 18px rgba(0,0,0,0.08);
-    margin-bottom:16px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.08);
+    margin-bottom:18px;
 }
-.title {font-size:26px;font-weight:700;}
-.sub {color:#6c757d;}
-.metric {font-size:22px;font-weight:700;}
+.header {font-size:26px;font-weight:700;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -43,7 +41,7 @@ HANDOVER_PERSON = ["Shekhar", "Rohit Verma", "Amit Yadav"]
 DEFAULT_FLOOR = "L4"
 
 # =========================================================
-# FILE CONFIG
+# FILE CONFIG (NO DATA LOSS)
 # =========================================================
 DATA_DIR = "data"
 BUFFER_FILE = f"{DATA_DIR}/buffer_stock.xlsx"
@@ -88,9 +86,9 @@ if "login" not in st.session_state:
     st.session_state.login = False
 
 if not st.session_state.login:
-    st.markdown("<div class='card'><div class='title'>🔐 System Login</div></div>", unsafe_allow_html=True)
-    user = st.selectbox("User", ["TSD", "HOD"])
-    pwd = st.text_input("Password", type="password")
+    st.markdown("<div class='card'><div class='header'>🔐 LOGIN</div></div>", unsafe_allow_html=True)
+    user = st.selectbox("USER", ["TSD", "HOD"])
+    pwd = st.text_input("PASSWORD", type="password")
 
     if st.button("LOGIN"):
         ok, role = authenticate(user, pwd)
@@ -100,7 +98,7 @@ if not st.session_state.login:
             st.session_state.role = role
             st.rerun()
         else:
-            st.error("Invalid Credentials")
+            st.error("INVALID LOGIN")
     st.stop()
 
 # =========================================================
@@ -112,74 +110,102 @@ log_df = load_log()
 # =========================================================
 # SIDEBAR
 # =========================================================
-st.sidebar.markdown("### 👤 User Info")
-st.sidebar.success(st.session_state.user)
-st.sidebar.info(f"Role : {st.session_state.role}")
+st.sidebar.success(f"USER : {st.session_state.user}")
+st.sidebar.info(f"ROLE : {st.session_state.role}")
 
-menu = st.sidebar.radio("MENU", [
-    "DASHBOARD", "FULL BUFFER STOCK", "STOCK IN", "STOCK OUT", "REPORT"
-])
+menu = st.sidebar.radio(
+    "MENU",
+    ["DASHBOARD", "FULL BUFFER STOCK", "STOCK IN", "STOCK OUT", "REPORT"]
+)
 
 if st.sidebar.button("LOGOUT"):
     st.session_state.clear()
     st.rerun()
 
 # =========================================================
-# DASHBOARD
+# DASHBOARD (FULLY UPDATED)
 # =========================================================
 if menu == "DASHBOARD":
 
-    st.markdown("<div class='card'><div class='title'>📊 Dashboard</div></div>", unsafe_allow_html=True)
+    st.markdown("<div class='card'><div class='header'>📊 Dashboard</div></div>", unsafe_allow_html=True)
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("Total Stock", int(buffer_df["GOOD QTY."].sum()))
-    c2.metric("Total In", int(log_df["IN QTY"].sum()))
-    c3.metric("Total Out", int(log_df["OUT QTY"].sum()))
+    c1.metric("📦 TOTAL STOCK", int(buffer_df["GOOD QTY."].sum()))
+    c2.metric("📥 TOTAL IN", int(log_df["IN QTY"].sum()))
+    c3.metric("📤 TOTAL OUT", int(log_df["OUT QTY"].sum()))
 
-    st.markdown("### ⚠ Low Stock Alert")
-    low = buffer_df[buffer_df["GOOD QTY."] < 5]
-    st.dataframe(low if not low.empty else pd.DataFrame(["All stock levels are healthy"]))
+    # ---------- LOW STOCK ----------
+    st.markdown("### ⚠ Low Stock Alert (Below 5)")
+    low_stock = buffer_df[buffer_df["GOOD QTY."] < 5][
+        ["PART CODE", "DESCRIPTION", "MATERIAL ASSIGNING BASE", "GOOD QTY."]
+    ]
+    st.dataframe(low_stock if not low_stock.empty else pd.DataFrame(["All stock OK"]),
+                 use_container_width=True)
 
+    # ---------- LAST 3 MONTH CONSUMPTION ----------
     st.markdown("### 📉 Last 3 Months Consumption")
-    last3 = log_df[log_df["DATE"] >= pd.Timestamp.today() - pd.DateOffset(months=3)]
+    last3 = log_df[
+        log_df["DATE"] >= pd.Timestamp.today() - pd.DateOffset(months=3)
+    ]
 
-    cons = (
+    consumption_3m = (
         last3
         .groupby(["PART CODE", "MATERIAL ASSIGNING BASE"], as_index=False)
         ["OUT QTY"]
         .sum()
-        .rename(columns={"OUT QTY": "TOTAL CONSUMPTION"})
+        .rename(columns={"OUT QTY": "TOTAL CONSUMPTION (LAST 3 MONTHS)"})
     )
 
-    st.dataframe(cons if not cons.empty else pd.DataFrame(["No consumption data"]))
+    st.dataframe(consumption_3m if not consumption_3m.empty else pd.DataFrame(["No data"]),
+                 use_container_width=True)
+
+    st.download_button(
+        "⬇ Download All Part Stock",
+        to_excel(buffer_df),
+        "ALL_PART_STOCK.xlsx"
+    )
+
+    # ---------- DATE WISE OUT ----------
+    st.markdown("### 📅 Date Wise OUT Consumption (Last 3 Months)")
+    day_wise_out = (
+        last3
+        .groupby([last3["DATE"].dt.date, "PART CODE"], as_index=False)
+        ["OUT QTY"]
+        .sum()
+        .rename(columns={"OUT QTY": "DAY WISE OUT"})
+    )
+
+    st.dataframe(day_wise_out, use_container_width=True)
+
+    st.download_button(
+        "📥 Download Date Wise OUT Consumption",
+        to_excel(day_wise_out),
+        "DATE_WISE_OUT_CONSUMPTION.xlsx"
+    )
 
 # =========================================================
-# FULL BUFFER
+# FULL BUFFER STOCK
 # =========================================================
 elif menu == "FULL BUFFER STOCK":
-    st.markdown("### 📦 Buffer Stock Master")
     st.dataframe(buffer_df, use_container_width=True)
-    st.download_button("⬇ Download Buffer Stock", to_excel(buffer_df), "BUFFER_STOCK.xlsx")
+    st.download_button("⬇ DOWNLOAD BUFFER", to_excel(buffer_df), "BUFFER_STOCK.xlsx")
 
 # =========================================================
 # STOCK IN
 # =========================================================
 elif menu == "STOCK IN":
-    st.markdown("### 📥 Stock In")
-
-    part = st.selectbox("Part Code", buffer_df["PART CODE"].unique())
+    part = st.selectbox("PART CODE", buffer_df["PART CODE"].unique())
     row = buffer_df[buffer_df["PART CODE"] == part].iloc[0]
     current = int(row["GOOD QTY."])
 
-    st.info(f"Current Stock : {current}")
+    st.info(f"CURRENT STOCK : {current}")
+    qty = st.number_input("IN QTY", min_value=1, step=1)
+    tat = st.selectbox("DELIVERY TAT", DELIVERY_TAT)
+    hod = st.selectbox("APPLICANT HOD", APPLICANT_HOD)
+    hand = st.selectbox("HANDOVER PERSON", HANDOVER_PERSON)
+    remark = st.text_area("REMARK")
 
-    qty = st.number_input("In Quantity", min_value=1, step=1)
-    tat = st.selectbox("Delivery TAT", DELIVERY_TAT)
-    hod = st.selectbox("Applicant HOD", APPLICANT_HOD)
-    hand = st.selectbox("Handover Person", HANDOVER_PERSON)
-    remark = st.text_area("Remark")
-
-    if st.button("✅ Confirm Stock In"):
+    if st.button("✅ ADD STOCK"):
         buffer_df.loc[buffer_df["PART CODE"] == part, "GOOD QTY."] += qty
         buffer_df.to_excel(BUFFER_FILE, index=False)
 
@@ -194,31 +220,29 @@ elif menu == "STOCK IN":
         ]
 
         log_df.to_excel(LOG_FILE, index=False)
-        st.success("Stock added successfully")
+        st.success("STOCK IN SUCCESS")
         st.rerun()
 
 # =========================================================
 # STOCK OUT
 # =========================================================
 elif menu == "STOCK OUT":
-    st.markdown("### 📤 Stock Out")
-
-    part = st.selectbox("Part Code", buffer_df["PART CODE"].unique())
+    part = st.selectbox("PART CODE", buffer_df["PART CODE"].unique())
     row = buffer_df[buffer_df["PART CODE"] == part].iloc[0]
     current = int(row["GOOD QTY."])
 
-    st.info(f"Current Stock : {current}")
+    st.info(f"CURRENT STOCK : {current}")
     if current <= 0:
-        st.warning("No stock available")
+        st.warning("NO STOCK AVAILABLE")
         st.stop()
 
-    qty = st.number_input("Out Quantity", min_value=1, max_value=current, step=1)
-    tat = st.selectbox("Delivery TAT", DELIVERY_TAT)
-    hod = st.selectbox("Applicant HOD", APPLICANT_HOD)
-    hand = st.selectbox("Handover Person", HANDOVER_PERSON)
-    remark = st.text_area("Remark")
+    qty = st.number_input("OUT QTY", min_value=1, max_value=current, step=1)
+    tat = st.selectbox("DELIVERY TAT", DELIVERY_TAT)
+    hod = st.selectbox("APPLICANT HOD", APPLICANT_HOD)
+    hand = st.selectbox("HANDOVER PERSON", HANDOVER_PERSON)
+    remark = st.text_area("REMARK")
 
-    if st.button("❌ Confirm Stock Out"):
+    if st.button("❌ REMOVE STOCK"):
         buffer_df.loc[buffer_df["PART CODE"] == part, "GOOD QTY."] -= qty
         buffer_df.to_excel(BUFFER_FILE, index=False)
 
@@ -233,13 +257,12 @@ elif menu == "STOCK OUT":
         ]
 
         log_df.to_excel(LOG_FILE, index=False)
-        st.success("Stock issued successfully")
+        st.success("STOCK OUT SUCCESS")
         st.rerun()
 
 # =========================================================
 # REPORT
 # =========================================================
 elif menu == "REPORT":
-    st.markdown("### 📑 Transaction Report")
     st.dataframe(log_df, use_container_width=True)
-    st.download_button("⬇ Download Full Report", to_excel(log_df), "IN_OUT_REPORT.xlsx")
+    st.download_button("⬇ DOWNLOAD REPORT", to_excel(log_df), "IN_OUT_REPORT.xlsx")
