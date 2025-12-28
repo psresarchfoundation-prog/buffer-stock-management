@@ -1,121 +1,239 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import gdown
+from auth import authenticate
+import os
 from io import BytesIO
+import gdown
 
-# ================= CONFIG =================
-st.set_page_config("BUFFER STOCK MANAGEMENT", layout="wide")
+# =========================================================
+# PAGE CONFIG
+# =========================================================
+st.set_page_config("BUFFER STOCK MANAGEMENT SYSTEM v3.3", layout="wide")
 
-BUFFER_SHEET_ID = "16qT02u7QKi7GrDHwczq99OjhCsFyay_h"
-TRANS_SHEET_ID = "1ThuZsaJsunOs46-teJTkgLs9KkctNwhS"
+# =========================================================
+# STYLE
+# =========================================================
+st.markdown("""
+<style>
+.card {
+    background:white;
+    padding:22px;
+    border-radius:16px;
+    box-shadow:0 8px 25px rgba(0,0,0,0.12);
+    margin-bottom:18px;
+}
+.header{font-size:26px;font-weight:700;}
+</style>
+""", unsafe_allow_html=True)
 
-# ================= FUNCTIONS =================
-@st.cache_data
-def load_sheet(sheet_id):
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
-    output = "data.xlsx"
-    gdown.download(url, output, quiet=True)
-    return pd.read_excel(output)
+# =========================================================
+# MASTER DATA
+# =========================================================
+DELIVERY_TAT = ["Same Day", "24 Hours", "48 Hours", "72 Hours"]
+APPLICANT_HOD = ["Rajkumar", "Ajay Kumar", "Sandeep Singh"]
+HANDOVER_PERSON = ["Shekhar", "Rohit Verma", "Amit Yadav"]
+DEFAULT_FLOOR = "L4"
 
-def download_excel(df, name):
-    buffer = BytesIO()
-    df.to_excel(buffer, index=False)
-    st.download_button(
-        "⬇ Download Excel",
-        buffer.getvalue(),
-        file_name=name,
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+# =========================================================
+# FILE CONFIG
+# =========================================================
+DATA_DIR = "data"
+BUFFER_FILE = f"{DATA_DIR}/buffer_stock.xlsx"
+LOG_FILE = f"{DATA_DIR}/in_out_log.xlsx"
+os.makedirs(DATA_DIR, exist_ok=True)
 
-# ================= LOAD DATA =================
-stock_df = load_sheet(BUFFER_SHEET_ID)
-trans_df = load_sheet(TRANS_SHEET_ID)
+BUFFER_FILE_ID = "16qT02u7QKi7GrDHwczq99OjhCsFyay_h"
+LOG_FILE_ID = "1ThuZsaJsunOs46-teJTkgLs9KkctNwhS"
 
-stock_df["CURRENT_STOCK"] = stock_df["CURRENT_STOCK"].fillna(0).astype(int)
+def drive_download(fid, path):
+    if not os.path.exists(path):
+        gdown.download(f"https://drive.google.com/uc?id={fid}", path, quiet=True)
 
-# ================= LOGIN (DUMMY) =================
-st.sidebar.title("🔐 LOGIN")
-user = st.sidebar.text_input("USER")
-pwd = st.sidebar.text_input("PASSWORD", type="password")
+drive_download(BUFFER_FILE_ID, BUFFER_FILE)
+drive_download(LOG_FILE_ID, LOG_FILE)
 
-if user != "TSD" or pwd != "TSD":
-    st.warning("Login = TSD / TSD")
+# =========================================================
+# LOGIN
+# =========================================================
+if "login" not in st.session_state:
+    st.session_state.login = False
+
+if not st.session_state.login:
+    st.title("🔐 LOGIN")
+    user = st.selectbox("USER", ["TSD", "HOD"])
+    pwd = st.text_input("PASSWORD", type="password")
+
+    if st.button("LOGIN"):
+        ok, role = authenticate(user, pwd)
+        if ok:
+            st.session_state.login = True
+            st.session_state.user = user
+            st.session_state.role = role
+            st.rerun()
+        else:
+            st.error("INVALID LOGIN")
     st.stop()
 
-# ================= MENU =================
+# =========================================================
+# LOAD DATA
+# =========================================================
+@st.cache_data(ttl=5)
+def load_buffer():
+    df = pd.read_excel(BUFFER_FILE)
+    df["GOOD QTY."] = pd.to_numeric(df["GOOD QTY."], errors="coerce").fillna(0)
+    return df
+
+@st.cache_data(ttl=5)
+def load_log():
+    df = pd.read_excel(LOG_FILE)
+    df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce")
+    df["IN QTY"] = pd.to_numeric(df["IN QTY"], errors="coerce").fillna(0)
+    df["OUT QTY"] = pd.to_numeric(df["OUT QTY"], errors="coerce").fillna(0)
+    return df
+
+buffer_df = load_buffer()
+log_df = load_log()
+
+# =========================================================
+# EXCEL DOWNLOAD
+# =========================================================
+def to_excel(df):
+    out = BytesIO()
+    with pd.ExcelWriter(out, engine="openpyxl") as w:
+        df.to_excel(w, index=False)
+    return out.getvalue()
+
+# =========================================================
+# SIDEBAR
+# =========================================================
+st.sidebar.success(f"USER : {st.session_state.user}")
+st.sidebar.info(f"ROLE : {st.session_state.role}")
+
 menu = st.sidebar.radio("MENU", [
-    "DASHBOARD",
-    "FULL BUFFER STOCK",
-    "STOCK IN",
-    "STOCK OUT",
-    "REPORT"
+    "DASHBOARD", "FULL BUFFER STOCK", "STOCK IN", "STOCK OUT", "REPORT"
 ])
 
-# ================= DASHBOARD =================
+if st.sidebar.button("LOGOUT"):
+    st.session_state.clear()
+    st.rerun()
+
+# =========================================================
+# DASHBOARD
+# =========================================================
 if menu == "DASHBOARD":
-    st.title("📊 DASHBOARD")
+    st.markdown("<div class='card'><div class='header'>📊 Dashboard</div></div>", unsafe_allow_html=True)
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("📦 TOTAL ITEMS", len(stock_df))
-    c2.metric("📥 TOTAL IN", trans_df[trans_df["TYPE"]=="IN"]["QTY"].sum())
-    c3.metric("📤 TOTAL OUT", trans_df[trans_df["TYPE"]=="OUT"]["QTY"].sum())
+    c1.metric("📦 TOTAL STOCK", int(buffer_df["GOOD QTY."].sum()))
+    c2.metric("📥 TOTAL IN", int(log_df["IN QTY"].sum()))
+    c3.metric("📤 TOTAL OUT", int(log_df["OUT QTY"].sum()))
 
-    st.subheader("Current Stock")
-    st.dataframe(stock_df)
+    st.subheader("⚠ LOW STOCK ALERT")
+    low = buffer_df[buffer_df["GOOD QTY."] < 5]
+    st.dataframe(low if not low.empty else pd.DataFrame(["ALL STOCK OK"]))
 
-    download_excel(stock_df, "buffer_stock.xlsx")
+    st.subheader("📉 LAST 3 MONTH CONSUMPTION")
+    last3 = log_df[log_df["DATE"] >= (pd.Timestamp.today() - pd.DateOffset(months=3))]
+    cons = last3.groupby("PART CODE")["OUT QTY"].sum().reset_index()
+    st.dataframe(cons if not cons.empty else pd.DataFrame(["NO DATA"]))
 
-# ================= FULL STOCK =================
+# =========================================================
+# FULL BUFFER
+# =========================================================
 elif menu == "FULL BUFFER STOCK":
-    st.title("📦 FULL BUFFER STOCK")
-    st.dataframe(stock_df)
-    download_excel(stock_df, "full_stock.xlsx")
+    st.dataframe(buffer_df, use_container_width=True)
+    st.download_button("⬇ DOWNLOAD BUFFER", to_excel(buffer_df), "BUFFER_STOCK.xlsx")
 
-# ================= STOCK IN =================
+# =========================================================
+# STOCK IN
+# =========================================================
 elif menu == "STOCK IN":
-    st.title("📥 STOCK IN")
+    part = st.selectbox("PART CODE", buffer_df["PART CODE"].dropna().unique())
+    row = buffer_df[buffer_df["PART CODE"] == part].iloc[0]
+    current = int(row["GOOD QTY."])
 
-    part = st.selectbox("PART CODE", stock_df["PART_CODE"])
+    st.info(f"CURRENT STOCK : {current}")
+
     qty = st.number_input("IN QTY", min_value=1, step=1)
+    tat = st.selectbox("DELIVERY TAT", DELIVERY_TAT)
 
-    if st.button("SAVE IN"):
-        stock_df.loc[stock_df["PART_CODE"]==part, "CURRENT_STOCK"] += qty
+    st.text_input("MATERIAL ASSIGNING BASE", row["MATERIAL ASSIGNING BASE"], disabled=True)
+    st.text_input("DESCRIPTION", row["DESCRIPTION"], disabled=True)
+    st.text_input("TYPE", row["TYPE"], disabled=True)
 
-        trans_df.loc[len(trans_df)] = [
-            datetime.now(), part, "IN", qty
+    hod = st.selectbox("APPLICANT HOD", APPLICANT_HOD)
+    hand = st.selectbox("HANDOVER PERSON", HANDOVER_PERSON)
+    st.text_input("FLOOR", DEFAULT_FLOOR, disabled=True)
+    remark = st.text_area("REMARK")
+
+    if st.button("✅ ADD STOCK"):
+        buffer_df.loc[buffer_df["PART CODE"] == part, "GOOD QTY."] += qty
+        buffer_df.to_excel(BUFFER_FILE, index=False)
+
+        log_df.loc[len(log_df)] = [
+            datetime.today(), datetime.today().strftime("%Y-%m"),
+            datetime.today().isocalendar()[1], "",
+            tat, row["MATERIAL ASSIGNING BASE"],
+            row["DESCRIPTION"], row["TYPE"],
+            part, current, qty, 0, current + qty,
+            hod, hand, st.session_state.user,
+            DEFAULT_FLOOR, remark, st.session_state.user
         ]
 
-        st.success("Stock In Added")
+        log_df.to_excel(LOG_FILE, index=False)
         st.cache_data.clear()
+        st.success("STOCK IN SUCCESS")
+        st.rerun()
 
-# ================= STOCK OUT =================
+# =========================================================
+# STOCK OUT
+# =========================================================
 elif menu == "STOCK OUT":
-    st.title("📤 STOCK OUT")
+    part = st.selectbox("PART CODE", buffer_df["PART CODE"].dropna().unique())
+    row = buffer_df[buffer_df["PART CODE"] == part].iloc[0]
+    current = int(row["GOOD QTY."])
 
-    part = st.selectbox("PART CODE", stock_df["PART_CODE"])
-    current = int(stock_df.loc[stock_df["PART_CODE"]==part, "CURRENT_STOCK"].values[0])
+    st.info(f"CURRENT STOCK : {current}")
 
-    st.info(f"Current Stock: {current}")
-
-    if current == 0:
-        st.warning("No Stock Available")
+    if current <= 0:
+        st.warning("NO STOCK AVAILABLE")
         st.stop()
 
     qty = st.number_input("OUT QTY", min_value=1, max_value=current, step=1)
+    tat = st.selectbox("DELIVERY TAT", DELIVERY_TAT)
 
-    if st.button("SAVE OUT"):
-        stock_df.loc[stock_df["PART_CODE"]==part, "CURRENT_STOCK"] -= qty
+    st.text_input("MATERIAL ASSIGNING BASE", row["MATERIAL ASSIGNING BASE"], disabled=True)
+    st.text_input("DESCRIPTION", row["DESCRIPTION"], disabled=True)
+    st.text_input("TYPE", row["TYPE"], disabled=True)
 
-        trans_df.loc[len(trans_df)] = [
-            datetime.now(), part, "OUT", qty
+    hod = st.selectbox("APPLICANT HOD", APPLICANT_HOD)
+    hand = st.selectbox("HANDOVER PERSON", HANDOVER_PERSON)
+    st.text_input("FLOOR", DEFAULT_FLOOR, disabled=True)
+    remark = st.text_area("REMARK")
+
+    if st.button("❌ REMOVE STOCK"):
+        buffer_df.loc[buffer_df["PART CODE"] == part, "GOOD QTY."] -= qty
+        buffer_df.to_excel(BUFFER_FILE, index=False)
+
+        log_df.loc[len(log_df)] = [
+            datetime.today(), datetime.today().strftime("%Y-%m"),
+            datetime.today().isocalendar()[1], "",
+            tat, row["MATERIAL ASSIGNING BASE"],
+            row["DESCRIPTION"], row["TYPE"],
+            part, current, 0, qty, current - qty,
+            hod, hand, st.session_state.user,
+            DEFAULT_FLOOR, remark, st.session_state.user
         ]
 
-        st.success("Stock Out Added")
+        log_df.to_excel(LOG_FILE, index=False)
         st.cache_data.clear()
+        st.success("STOCK OUT SUCCESS")
+        st.rerun()
 
-# ================= REPORT =================
+# =========================================================
+# REPORT
+# =========================================================
 elif menu == "REPORT":
-    st.title("📑 TRANSACTION REPORT")
-    st.dataframe(trans_df)
-    download_excel(trans_df, "transaction_report.xlsx")
+    st.dataframe(log_df, use_container_width=True)
+    st.download_button("⬇ DOWNLOAD REPORT", to_excel(log_df), "IN_OUT_REPORT.xlsx")
