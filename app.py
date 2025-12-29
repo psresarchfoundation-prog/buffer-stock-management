@@ -38,18 +38,12 @@ BUFFER_SHEET_ID = "16qT02u7QKi7GrDHwczq99OjhCsFyay_h"
 LOG_SHEET_ID    = "1ThuZsaJsunOs46-teJTkgLs9KkctNwhS"
 
 OPERATOR_NAME = "Santosh Kumar"
-HOD_LIST = ["Pankaj Sir", "Kevin Sir", "Aiyousha", "Other"]
-FLOOR_LIST = ["GF", "1F", "2F", "3F", "Other"]
-DELIVERY_TAT_LIST = ["Same Day", "Other"]
 
 # =====================================================
-# GOOGLE AUTH  (🔥 PYASN1 FIX INCLUDED 🔥)
+# GOOGLE AUTH (FINAL – PYASN1 SAFE)
 # =====================================================
-info = dict(st.secrets["gcp_service_account"])
-info["private_key"] = info["private_key"].replace("\\n", "\n")
-
 creds = Credentials.from_service_account_info(
-    info,
+    st.secrets["gcp_service_account"],
     scopes=[
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
@@ -189,21 +183,12 @@ elif menu == "STOCK IN":
             "TIME": datetime.now().strftime("%H:%M:%S"),
             "MONTH": datetime.today().strftime("%B"),
             "WEEK": datetime.today().isocalendar()[1],
-            "GATE PASS NO": "",
-            "DELIVERY TAT": "",
-            "MATERIAL ASSIGNING BASE": row["BASE (LOCAL LANGUAGE)"],
-            "DESCRIPTION": row["MATERIAL DESCRIPTION (CHINA)"],
-            "TYPE": row["TYPES"],
             "PART CODE": part,
             "PREVIOUS STOCK": prev,
             "IN QTY": qty,
             "OUT QTY": 0,
             "BALANCE": prev + qty,
-            "APPLICANT HOD": "",
-            "HANDOVER PERSON": OPERATOR_NAME,
             "OPERATOR": OPERATOR_NAME,
-            "FLOOR": "",
-            "REMARK": "",
             "USER": st.session_state.user
         })
 
@@ -236,21 +221,12 @@ elif menu == "STOCK OUT":
                 "TIME": datetime.now().strftime("%H:%M:%S"),
                 "MONTH": datetime.today().strftime("%B"),
                 "WEEK": datetime.today().isocalendar()[1],
-                "GATE PASS NO": "",
-                "DELIVERY TAT": "",
-                "MATERIAL ASSIGNING BASE": row["BASE (LOCAL LANGUAGE)"],
-                "DESCRIPTION": row["MATERIAL DESCRIPTION (CHINA)"],
-                "TYPE": row["TYPES"],
                 "PART CODE": part,
                 "PREVIOUS STOCK": prev,
                 "IN QTY": 0,
                 "OUT QTY": qty,
                 "BALANCE": prev - qty,
-                "APPLICANT HOD": "",
-                "HANDOVER PERSON": OPERATOR_NAME,
                 "OPERATOR": OPERATOR_NAME,
-                "FLOOR": "",
-                "REMARK": "",
                 "USER": st.session_state.user
             })
 
