@@ -1,3 +1,5 @@
+# auth.py
+
 USERS = {
     "TSD": {
         "password": "TSDwh@2026",
