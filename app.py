@@ -8,11 +8,11 @@ from io import BytesIO
 from auth import authenticate
 
 # ================= PAGE CONFIG =================
-st.set_page_config("BUFFER STOCK MANAGEMENT", layout="wide")
+st.set_page_config(page_title="BUFFER STOCK MANAGEMENT", layout="wide")
 
 # ================= CONSTANTS =================
-BUFFER_SHEET_ID = "16qT02u7QKi7GrDHwczq99OjhCsFyay_h"
-LOG_SHEET_ID    = "1ThuZsaJsunOs46-teJTkgLs9KkctNwhS"
+BUFFER_SHEET_ID = "13XzWDCbuA7ZWZLyjezLCBm7oFxb35me6Z53RozF9yaE"   # buffer sheet
+LOG_SHEET_ID    = "12Hnk3k2D3JReYZnbsCYCbvIbTb23zfbE5UuuaEj4UTg"   # in/out log sheet
 OPERATOR_NAME = "Santosh Kumar"
 
 # ================= GOOGLE AUTH =================
@@ -34,6 +34,7 @@ def safe_open(sheet_id):
         return client.open_by_key(sheet_id).sheet1
     except Exception as e:
         st.error("❌ Google Sheet Permission / ID Error")
+        st.write(e)
         st.stop()
 
 buffer_ws = safe_open(BUFFER_SHEET_ID)
@@ -46,23 +47,16 @@ def load_df(ws, cols):
         return pd.DataFrame(columns=cols)
     return pd.DataFrame(data)
 
-buffer_df = load_df(
-    buffer_ws,
-    ["PART CODE", "DESCRIPTION", "GOOD QTY."]
-)
-log_df = load_df(
-    log_ws,
-    ["DATE","TIME","MONTH","WEEK","PART CODE",
-     "PREVIOUS STOCK","IN QTY","OUT QTY",
-     "BALANCE","OPERATOR","USER"]
-)
+buffer_df = load_df(buffer_ws, ["PART CODE", "DESCRIPTION", "GOOD QTY."])
+log_df    = load_df(log_ws, ["DATE","TIME","MONTH","WEEK","PART CODE",
+                             "PREVIOUS STOCK","IN QTY","OUT QTY","BALANCE","OPERATOR","USER"])
 
 buffer_df["GOOD QTY."] = pd.to_numeric(buffer_df["GOOD QTY."], errors="coerce").fillna(0)
 log_df["IN QTY"] = pd.to_numeric(log_df["IN QTY"], errors="coerce").fillna(0)
 log_df["OUT QTY"] = pd.to_numeric(log_df["OUT QTY"], errors="coerce").fillna(0)
 log_df["DATE"] = pd.to_datetime(log_df["DATE"], errors="coerce")
 
-# ================= SAVE FUNCTIONS =================
+# ================= SAVE / LOG =================
 def save_buffer(df):
     buffer_ws.clear()
     buffer_ws.update([df.columns.tolist()] + df.fillna("").values.tolist())
@@ -82,13 +76,13 @@ if "login" not in st.session_state:
 
 if not st.session_state.login:
     st.title("🔐 LOGIN")
-    u = st.selectbox("USER", ["TSD", "HOD"])
-    p = st.text_input("PASSWORD", type="password")
+    user = st.selectbox("USER", ["TSD", "HOD"])
+    pwd = st.text_input("PASSWORD", type="password")
     if st.button("LOGIN"):
-        ok, role = authenticate(u, p)
+        ok, role = authenticate(user, pwd)
         if ok:
             st.session_state.login = True
-            st.session_state.user = u
+            st.session_state.user = user
             st.session_state.role = role
             st.rerun()
         else:
@@ -99,10 +93,7 @@ if not st.session_state.login:
 st.sidebar.success(f"USER : {st.session_state.user}")
 st.sidebar.info(f"ROLE : {st.session_state.role}")
 
-menu = st.sidebar.radio(
-    "MENU",
-    ["DASHBOARD","BUFFER","STOCK IN","STOCK OUT","REPORT"]
-)
+menu = st.sidebar.radio("MENU", ["DASHBOARD","BUFFER","STOCK IN","STOCK OUT","REPORT"])
 
 if st.sidebar.button("LOGOUT"):
     st.session_state.clear()
@@ -114,6 +105,7 @@ if menu == "DASHBOARD":
     c1.metric("TOTAL STOCK", int(buffer_df["GOOD QTY."].sum()))
     c2.metric("TOTAL IN", int(log_df["IN QTY"].sum()))
     c3.metric("TOTAL OUT", int(log_df["OUT QTY"].sum()))
+    st.subheader("Buffer Stock Overview")
     st.dataframe(buffer_df, use_container_width=True)
 
 # ================= BUFFER =================
@@ -129,7 +121,7 @@ elif menu == "STOCK IN":
         part = st.selectbox("PART CODE", buffer_df["PART CODE"])
         idx = buffer_df[buffer_df["PART CODE"] == part].index[0]
         qty = st.number_input("IN QTY", min_value=1, step=1)
-        if st.button("ADD"):
+        if st.button("ADD STOCK"):
             prev = buffer_df.at[idx,"GOOD QTY."]
             buffer_df.at[idx,"GOOD QTY."] += qty
             save_buffer(buffer_df)
@@ -160,7 +152,7 @@ elif menu == "STOCK OUT":
         st.info(f"Current Stock : {cur}")
         if cur > 0:
             qty = st.number_input("OUT QTY", min_value=1, max_value=cur)
-            if st.button("REMOVE"):
+            if st.button("REMOVE STOCK"):
                 buffer_df.at[idx,"GOOD QTY."] -= qty
                 save_buffer(buffer_df)
                 append_log({
