@@ -1,6 +1,12 @@
 USERS = {
-    "TSD": {"password": "1234", "role": "READ"},
-    "HOD": {"password": "admin", "role": "ADMIN"}
+    "TSD": {
+        "password": "TSDwh@2026",
+        "role": "TSD"
+    },
+    "HOD": {
+        "password": "HODwh@2026",
+        "role": "HOD"
+    }
 }
 
 def authenticate(username, password):
