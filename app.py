@@ -3,146 +3,146 @@ import pandas as pd
 from datetime import datetime
 from auth import authenticate
 import os
-from io import BytesIO
 
 # ================= CONFIG =================
-st.set_page_config("Buffer Stock System", "📦", layout="wide")
+st.set_page_config("BUFFER STOCK MANAGEMENT SYSTEM", layout="wide")
 
 DATA_DIR = "data"
+BUFFER_FILE = f"{DATA_DIR}/buffer_stock.xlsx"
+LOG_FILE = f"{DATA_DIR}/stock_log.xlsx"
+
 os.makedirs(DATA_DIR, exist_ok=True)
 
-BUFFER_FILE = f"{DATA_DIR}/buffer_stock.xlsx"
-LOG_FILE = f"{DATA_DIR}/in_out_log.xlsx"
+# ================= AUTH =================
+if "logged" not in st.session_state:
+    st.session_state.logged = False
 
-# ================= INIT FILES (VERY IMPORTANT) =================
-def init_files():
-    if not os.path.exists(BUFFER_FILE):
-        df = pd.DataFrame([
-            ["P1001","RAM 8GB","IT","ELECTRONIC",50],
-            ["P1002","SSD 512GB","IT","ELECTRONIC",30],
-            ["P1003","Keyboard","IT","ACCESSORY",100],
-        ], columns=[
-            "PART CODE","DESCRIPTION",
-            "MATERIAL ASSIGNING BASE","TYPE","GOOD QTY."
-        ])
-        df.to_excel(BUFFER_FILE, index=False)
+if not st.session_state.logged:
+    st.title("🔐 Login")
 
-    if not os.path.exists(LOG_FILE):
-        df = pd.DataFrame(columns=[
-            "DATE","MONTH","WEEK",
-            "PART CODE","PREVIOUS STOCK",
-            "IN QTY","OUT QTY","BALANCE",
-            "USER","REMARK"
-        ])
-        df.to_excel(LOG_FILE, index=False)
-
-init_files()
-
-# ================= LOAD DATA =================
-buffer_df = pd.read_excel(BUFFER_FILE)
-log_df = pd.read_excel(LOG_FILE)
-
-buffer_df["GOOD QTY."] = pd.to_numeric(
-    buffer_df["GOOD QTY."], errors="coerce"
-).fillna(0)
-
-# ================= LOGIN =================
-if "login" not in st.session_state:
-    st.session_state.login = False
-
-if not st.session_state.login:
-    st.title("🔐 LOGIN")
-    user = st.selectbox("User", ["TSD","HOD"])
+    user = st.selectbox("User", ["TSD", "HOD"])
     pwd = st.text_input("Password", type="password")
 
-    if st.button("LOGIN"):
+    if st.button("Login"):
         ok, role = authenticate(user, pwd)
         if ok:
-            st.session_state.login = True
+            st.session_state.logged = True
             st.session_state.user = user
             st.session_state.role = role
             st.rerun()
         else:
-            st.error("❌ Wrong login")
+            st.error("❌ Invalid Login")
+
     st.stop()
 
-# ================= SIDEBAR =================
-st.sidebar.success(f"USER : {st.session_state.user}")
-st.sidebar.info(f"ROLE : {st.session_state.role}")
+# ================= LOAD DATA =================
+def load_buffer():
+    cols = ["PART CODE","DESCRIPTION","BASE","TYPE","GOOD QTY"]
+    if not os.path.exists(BUFFER_FILE):
+        df = pd.DataFrame([
+            ["P1001","RAM 8GB","IT","ELECTRONIC",50],
+            ["P1002","SSD 512GB","IT","ELECTRONIC",30],
+            ["P1003","Keyboard","IT","ACCESSORY",100]
+        ], columns=cols)
+        df.to_excel(BUFFER_FILE, index=False)
 
-if st.session_state.role == "READ":
-    menu = st.sidebar.radio("MENU", ["DASHBOARD","BUFFER","REPORT"])
-else:
-    menu = st.sidebar.radio(
-        "MENU",
-        ["DASHBOARD","BUFFER","STOCK IN","STOCK OUT","REPORT"]
-    )
+    df = pd.read_excel(BUFFER_FILE)
+    df["GOOD QTY"] = pd.to_numeric(df["GOOD QTY"], errors="coerce").fillna(0)
+    return df
 
-if st.sidebar.button("LOGOUT"):
-    st.session_state.clear()
-    st.rerun()
+def load_log():
+    cols = [
+        "DATE","PART CODE","DESCRIPTION",
+        "PREVIOUS","IN","OUT","BALANCE",
+        "REMARK","ENTRY BY"
+    ]
+    if not os.path.exists(LOG_FILE):
+        pd.DataFrame(columns=cols).to_excel(LOG_FILE, index=False)
+    return pd.read_excel(LOG_FILE)
+
+buffer_df = load_buffer()
+log_df = load_log()
+
+# ================= UI =================
+st.sidebar.success(f"👤 {st.session_state.user} ({st.session_state.role})")
+
+menu = st.sidebar.radio("MENU", ["Dashboard","Stock In","Stock Out","Logs","Logout"])
 
 # ================= DASHBOARD =================
-if menu == "DASHBOARD":
-    c1,c2,c3 = st.columns(3)
-    c1.metric("TOTAL STOCK", int(buffer_df["GOOD QTY."].sum()))
-    c2.metric("TOTAL IN", int(log_df["IN QTY"].sum()) if not log_df.empty else 0)
-    c3.metric("TOTAL OUT", int(log_df["OUT QTY"].sum()) if not log_df.empty else 0)
-    st.dataframe(buffer_df, use_container_width=True)
-
-# ================= BUFFER =================
-elif menu == "BUFFER":
+if menu == "Dashboard":
+    st.title("📊 Buffer Stock Dashboard")
     st.dataframe(buffer_df, use_container_width=True)
 
 # ================= STOCK IN =================
-elif menu == "STOCK IN":
-    part = st.selectbox("PART CODE", buffer_df["PART CODE"])
-    idx = buffer_df[buffer_df["PART CODE"]==part].index[0]
-    cur = int(buffer_df.at[idx,"GOOD QTY."])
+elif menu == "Stock In":
+    if st.session_state.role != "ADMIN":
+        st.error("❌ Read Only Access")
+        st.stop()
 
-    qty = st.number_input("IN QTY", min_value=1, step=1)
+    st.title("➕ Stock In")
+
+    part = st.selectbox("Part", buffer_df["PART CODE"])
+    qty = st.number_input("In Quantity", min_value=1)
     remark = st.text_input("Remark")
 
-    if st.button("ADD STOCK"):
-        buffer_df.at[idx,"GOOD QTY."] += qty
-        buffer_df.to_excel(BUFFER_FILE, index=False)
+    if st.button("Submit Stock In"):
+        idx = buffer_df[buffer_df["PART CODE"] == part].index[0]
+        prev = buffer_df.at[idx, "GOOD QTY"]
+        buffer_df.at[idx, "GOOD QTY"] += qty
 
         log_df.loc[len(log_df)] = [
-            datetime.today(),
-            datetime.today().strftime("%B"),
-            datetime.today().isocalendar()[1],
-            part, cur, qty, 0, cur+qty,
-            st.session_state.user, remark
+            datetime.now(), part,
+            buffer_df.at[idx,"DESCRIPTION"],
+            prev, qty, 0,
+            buffer_df.at[idx,"GOOD QTY"],
+            remark, st.session_state.user
         ]
+
+        buffer_df.to_excel(BUFFER_FILE, index=False)
         log_df.to_excel(LOG_FILE, index=False)
+
         st.success("✅ Stock Added")
-        st.rerun()
 
 # ================= STOCK OUT =================
-elif menu == "STOCK OUT":
-    part = st.selectbox("PART CODE", buffer_df["PART CODE"])
-    idx = buffer_df[buffer_df["PART CODE"]==part].index[0]
-    cur = int(buffer_df.at[idx,"GOOD QTY."])
+elif menu == "Stock Out":
+    if st.session_state.role != "ADMIN":
+        st.error("❌ Read Only Access")
+        st.stop()
 
-    st.info(f"Current Stock : {cur}")
-    qty = st.number_input("OUT QTY", min_value=1, max_value=cur)
+    st.title("➖ Stock Out")
+
+    part = st.selectbox("Part", buffer_df["PART CODE"])
+    qty = st.number_input("Out Quantity", min_value=1)
     remark = st.text_input("Remark")
 
-    if st.button("REMOVE STOCK"):
-        buffer_df.at[idx,"GOOD QTY."] -= qty
-        buffer_df.to_excel(BUFFER_FILE, index=False)
+    if st.button("Submit Stock Out"):
+        idx = buffer_df[buffer_df["PART CODE"] == part].index[0]
+        prev = buffer_df.at[idx, "GOOD QTY"]
 
-        log_df.loc[len(log_df)] = [
-            datetime.today(),
-            datetime.today().strftime("%B"),
-            datetime.today().isocalendar()[1],
-            part, cur, 0, qty, cur-qty,
-            st.session_state.user, remark
-        ]
-        log_df.to_excel(LOG_FILE, index=False)
-        st.success("✅ Stock Removed")
-        st.rerun()
+        if qty > prev:
+            st.error("❌ Insufficient Stock")
+        else:
+            buffer_df.at[idx, "GOOD QTY"] -= qty
 
-# ================= REPORT =================
-elif menu == "REPORT":
+            log_df.loc[len(log_df)] = [
+                datetime.now(), part,
+                buffer_df.at[idx,"DESCRIPTION"],
+                prev, 0, qty,
+                buffer_df.at[idx,"GOOD QTY"],
+                remark, st.session_state.user
+            ]
+
+            buffer_df.to_excel(BUFFER_FILE, index=False)
+            log_df.to_excel(LOG_FILE, index=False)
+
+            st.success("✅ Stock Deducted")
+
+# ================= LOGS =================
+elif menu == "Logs":
+    st.title("📜 Stock Logs")
     st.dataframe(log_df, use_container_width=True)
+
+# ================= LOGOUT =================
+elif menu == "Logout":
+    st.session_state.clear()
+    st.rerun()
