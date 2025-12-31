@@ -35,6 +35,9 @@ scope = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
+st.write(
+    st.secrets["gcp_service_account"]["private_key"].splitlines()[0]
+)
 
 creds = Credentials.from_service_account_info(
     st.secrets["gcp_service_account"], scopes=scope
@@ -188,3 +191,4 @@ elif menu == "STOCK OUT":
 elif menu == "REPORT":
     st.markdown("<div class='card'><h3>IN / OUT REPORT</h3></div>", unsafe_allow_html=True)
     st.dataframe(log_df, use_container_width=True)
+
