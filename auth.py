@@ -1,14 +1,6 @@
-# auth.py
-
 USERS = {
-    "TSD": {
-        "password": "TSDwh@2026",
-        "role": "TSD"
-    },
-    "HOD": {
-        "password": "HODwh@2026",
-        "role": "HOD"
-    }
+    "TSD": {"password": "1234", "role": "READ"},
+    "HOD": {"password": "admin", "role": "ADMIN"}
 }
 
 def authenticate(username, password):
