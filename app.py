@@ -5,6 +5,7 @@ from pandas.tseries.offsets import DateOffset
 from auth import authenticate
 import gspread
 from google.oauth2.service_account import Credentials
+from io import BytesIO
 
 # =====================================================
 # PAGE CONFIG
@@ -25,6 +26,8 @@ HANDOVER_LIST = ["Santosh Kumar", "Store", "Security", "Other"]
 FLOOR_LIST = ["GF", "1F", "2F", "3F", "Other"]
 REMARK_LIST = ["Routine Use", "Replacement", "New Requirement", "Other"]
 DELIVERY_TAT_LIST = ["Same Day", "Next Day", "Other"]
+
+LOW_STOCK_DEFAULT = 10
 
 # =====================================================
 # GOOGLE SHEETS
@@ -54,10 +57,14 @@ log_ws = gc.open_by_key(
 def load_buffer():
     df = pd.DataFrame(buffer_ws.get_all_records())
     df["GOOD QTY."] = pd.to_numeric(df["GOOD QTY."], errors="coerce").fillna(0)
+    if "LOW STOCK" not in df.columns:
+        df["LOW STOCK"] = LOW_STOCK_DEFAULT
     return df
 
 def load_log():
     df = pd.DataFrame(log_ws.get_all_records())
+    if df.empty:
+        return df
     df["IN QTY"] = pd.to_numeric(df["IN QTY"], errors="coerce").fillna(0)
     df["OUT QTY"] = pd.to_numeric(df["OUT QTY"], errors="coerce").fillna(0)
     df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce")
@@ -101,9 +108,12 @@ menu = st.sidebar.radio(
 # =====================================================
 if menu == "DASHBOARD":
 
-    st.metric("TOTAL STOCK", int(buffer_df["GOOD QTY."].sum()))
+    st.metric("📦 TOTAL STOCK", int(buffer_df["GOOD QTY."].sum()))
 
-    # 🔥 LAST 3 MONTHS CONSUMPTION (FULL DETAILS)
+    low_stock = buffer_df[buffer_df["GOOD QTY."] <= buffer_df["LOW STOCK"]]
+    st.subheader("⚠ LOW STOCK MATERIAL ALERT")
+    st.dataframe(low_stock, use_container_width=True)
+
     last_3_months = datetime.now() - DateOffset(months=3)
     cons = log_df[(log_df["DATE"] >= last_3_months) & (log_df["OUT QTY"] > 0)]
 
@@ -114,6 +124,30 @@ if menu == "DASHBOARD":
 
     st.subheader("📉 LAST 3 MONTHS CONSUMPTION")
     st.dataframe(summary, use_container_width=True)
+
+# =====================================================
+# FULL BUFFER STOCK
+# =====================================================
+elif menu == "FULL BUFFER STOCK":
+
+    st.dataframe(buffer_df, use_container_width=True)
+
+    # EXPORT
+    output = BytesIO()
+    buffer_df.to_excel(output, index=False)
+    st.download_button(
+        "⬇ Download Buffer Stock Excel",
+        output.getvalue(),
+        "buffer_stock.xlsx"
+    )
+
+# =====================================================
+# COMMON DATE
+# =====================================================
+today = datetime.today()
+DATE = today.strftime("%Y-%m-%d")
+MONTH = today.strftime("%B")
+WEEK = today.isocalendar()[1]
 
 # =====================================================
 # STOCK IN
@@ -139,12 +173,8 @@ elif menu == "STOCK IN":
         idx = buffer_df[buffer_df["PART CODE"] == part].index[0]
         buffer_ws.update(f"F{idx+2}", current + qty)
 
-        today = datetime.today()
-
         log_ws.append_row([
-            today.strftime("%Y-%m-%d"),
-            today.strftime("%B"),
-            today.isocalendar()[1],
+            DATE, MONTH, WEEK,
             gate, tat,
             row["MATERIAL ASSIGNING BASE"],
             row["DESCRIPTION"],
@@ -192,12 +222,8 @@ elif menu == "STOCK OUT":
         idx = buffer_df[buffer_df["PART CODE"] == part].index[0]
         buffer_ws.update(f"F{idx+2}", current - qty)
 
-        today = datetime.today()
-
         log_ws.append_row([
-            today.strftime("%Y-%m-%d"),
-            today.strftime("%B"),
-            today.isocalendar()[1],
+            DATE, MONTH, WEEK,
             gate, "OUT",
             row["MATERIAL ASSIGNING BASE"],
             row["DESCRIPTION"],
@@ -222,4 +248,13 @@ elif menu == "STOCK OUT":
 # REPORT
 # =====================================================
 elif menu == "REPORT":
+
     st.dataframe(log_df, use_container_width=True)
+
+    out = BytesIO()
+    log_df.to_excel(out, index=False)
+    st.download_button(
+        "⬇ Download Full Report Excel",
+        out.getvalue(),
+        "stock_report.xlsx"
+    )
