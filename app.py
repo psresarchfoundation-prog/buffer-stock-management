@@ -10,11 +10,7 @@ from io import BytesIO
 # =====================================================
 # CONFIG
 # =====================================================
-st.set_page_config(
-    page_title="BUFFER STOCK MANAGEMENT SYSTEM vULTIMATE",
-    page_icon="📦",
-    layout="wide"
-)
+st.set_page_config("BUFFER STOCK MANAGEMENT SYSTEM vULTIMATE", "📦", "wide")
 
 LOW_STOCK_LIMIT = 5
 OPERATOR_NAME = "Santosh Kumar"
@@ -47,19 +43,15 @@ log_ws = gc.open_by_key(
 ).sheet1
 
 # =====================================================
-# LOAD DATA (SAFE)
+# LOAD DATA
 # =====================================================
 def load_buffer():
     df = pd.DataFrame(buffer_ws.get_all_records())
-    if df.empty:
-        return df
     df["GOOD QTY."] = pd.to_numeric(df["GOOD QTY."], errors="coerce").fillna(0)
     return df
 
 def load_log():
     df = pd.DataFrame(log_ws.get_all_records())
-    if df.empty:
-        return df
     df["IN QTY"] = pd.to_numeric(df["IN QTY"], errors="coerce").fillna(0)
     df["OUT QTY"] = pd.to_numeric(df["OUT QTY"], errors="coerce").fillna(0)
     df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce")
@@ -111,69 +103,57 @@ menu = st.sidebar.radio(
 # =====================================================
 if menu == "DASHBOARD":
 
-    st.metric("📦 TOTAL STOCK", int(buffer_df["GOOD QTY."].sum()))
+    st.metric("TOTAL STOCK", int(buffer_df["GOOD QTY."].sum()))
 
     st.subheader("⚠ LOW STOCK MATERIAL")
-    st.dataframe(
-        buffer_df[buffer_df["GOOD QTY."] <= LOW_STOCK_LIMIT],
-        use_container_width=True
-    )
+    low_df = buffer_df[buffer_df["GOOD QTY."] <= LOW_STOCK_LIMIT]
+    st.dataframe(low_df, use_container_width=True)
 
-    if not log_df.empty:
-        last_3 = datetime.now() - DateOffset(months=3)
-        cons = log_df[
-            (log_df["DATE"] >= last_3) & (log_df["OUT QTY"] > 0)
-        ]
+    last_3 = datetime.now() - DateOffset(months=3)
+    cons = log_df[(log_df["DATE"] >= last_3) & (log_df["OUT QTY"] > 0)]
 
-        summary = cons.groupby(
-            ["MATERIAL ASSIGNING BASE", "DESCRIPTION", "TYPE", "PART CODE"],
-            as_index=False
-        )["OUT QTY"].sum()
+    summary = cons.groupby(
+        ["MATERIAL ASSIGNING BASE", "DESCRIPTION", "TYPE", "PART CODE"],
+        as_index=False
+    )["OUT QTY"].sum()
 
-        st.subheader("📉 LAST 3 MONTHS CONSUMPTION")
-        st.dataframe(summary, use_container_width=True)
+    st.subheader("📉 LAST 3 MONTHS CONSUMPTION")
+    st.dataframe(summary, use_container_width=True)
 
 # =====================================================
-# FULL BUFFER STOCK
+# FULL BUFFER STOCK (ALL COLUMNS)
 # =====================================================
 elif menu == "FULL BUFFER STOCK":
+    st.subheader("📦 COMPLETE BUFFER STOCK")
     st.dataframe(buffer_df, use_container_width=True)
 
-    out = BytesIO()
-    buffer_df.to_excel(out, index=False)
+    # EXPORT
+    buffer_excel = BytesIO()
+    buffer_df.to_excel(buffer_excel, index=False)
     st.download_button(
         "⬇ Download Buffer Stock Excel",
-        out.getvalue(),
+        buffer_excel.getvalue(),
         "buffer_stock.xlsx"
     )
 
 # =====================================================
-# LOW STOCK ALERT
+# LOW STOCK PAGE
 # =====================================================
 elif menu == "LOW STOCK ALERT":
+    st.subheader("🚨 LOW STOCK MATERIAL ALERT")
     st.dataframe(
         buffer_df[buffer_df["GOOD QTY."] <= LOW_STOCK_LIMIT],
         use_container_width=True
     )
-
-# =====================================================
-# COMMON DATE
-# =====================================================
-today = datetime.today()
-DATE = today.strftime("%Y-%m-%d")
-MONTH = today.strftime("%B")
-WEEK = today.isocalendar()[1]
 
 # =====================================================
 # STOCK IN
 # =====================================================
 elif menu == "STOCK IN":
-
     part = st.selectbox("PART CODE", buffer_df["PART CODE"].unique())
     row = buffer_df[buffer_df["PART CODE"] == part].iloc[0]
     current = int(row["GOOD QTY."])
-
-    st.info(f"📦 CURRENT STOCK : {current}")
+    st.info(f"CURRENT STOCK : {current}")
 
     qty = st.number_input("IN QTY", min_value=1, step=1)
     gate = st.text_input("GATE PASS NO")
@@ -187,8 +167,11 @@ elif menu == "STOCK IN":
         idx = buffer_df[buffer_df["PART CODE"] == part].index[0]
         buffer_ws.update(f"F{idx+2}", current + qty)
 
+        today = datetime.today()
         log_ws.append_row([
-            DATE, MONTH, WEEK,
+            today.strftime("%Y-%m-%d"),
+            today.strftime("%B"),
+            today.isocalendar()[1],
             gate, tat,
             row["MATERIAL ASSIGNING BASE"],
             row["DESCRIPTION"],
@@ -205,7 +188,6 @@ elif menu == "STOCK IN":
             remark,
             st.session_state.user
         ])
-
         st.success("✅ STOCK IN UPDATED")
         st.rerun()
 
@@ -213,15 +195,13 @@ elif menu == "STOCK IN":
 # STOCK OUT
 # =====================================================
 elif menu == "STOCK OUT":
-
     part = st.selectbox("PART CODE", buffer_df["PART CODE"].unique())
     row = buffer_df[buffer_df["PART CODE"] == part].iloc[0]
     current = int(row["GOOD QTY."])
-
-    st.info(f"📦 CURRENT STOCK : {current}")
+    st.info(f"CURRENT STOCK : {current}")
 
     if current <= 0:
-        st.warning("⚠ No stock available")
+        st.warning("No stock available")
         st.stop()
 
     qty = st.number_input("OUT QTY", 1, current)
@@ -235,8 +215,11 @@ elif menu == "STOCK OUT":
         idx = buffer_df[buffer_df["PART CODE"] == part].index[0]
         buffer_ws.update(f"F{idx+2}", current - qty)
 
+        today = datetime.today()
         log_ws.append_row([
-            DATE, MONTH, WEEK,
+            today.strftime("%Y-%m-%d"),
+            today.strftime("%B"),
+            today.isocalendar()[1],
             gate, "OUT",
             row["MATERIAL ASSIGNING BASE"],
             row["DESCRIPTION"],
@@ -253,37 +236,35 @@ elif menu == "STOCK OUT":
             remark,
             st.session_state.user
         ])
-
         st.success("✅ STOCK OUT UPDATED")
         st.rerun()
 
 # =====================================================
-# REPORT
+# REPORT + EXPORT
 # =====================================================
 elif menu == "REPORT":
+    st.subheader("📑 IN / OUT REPORT")
     st.dataframe(log_df, use_container_width=True)
 
-    out = BytesIO()
-    log_df.to_excel(out, index=False)
+    report_excel = BytesIO()
+    log_df.to_excel(report_excel, index=False)
     st.download_button(
         "⬇ Download Report Excel",
-        out.getvalue(),
+        report_excel.getvalue(),
         "in_out_report.xlsx"
     )
 
 # =====================================================
-# IMPORT BUFFER (SAFE)
+# IMPORT BUFFER STOCK (SAFE)
 # =====================================================
 elif menu == "IMPORT / EXPORT":
+    st.subheader("📥 IMPORT BUFFER STOCK (SAFE UPDATE)")
 
     file = st.file_uploader("Upload Buffer Stock Excel", type=["xlsx"])
     if file:
         upload_df = pd.read_excel(file)
 
         if st.button("UPDATE BUFFER STOCK"):
-            updated = 0
-            skipped = 0
-
             for _, r in upload_df.iterrows():
                 match = buffer_df[buffer_df["PART CODE"] == r["PART CODE"]]
                 if not match.empty:
@@ -292,9 +273,5 @@ elif menu == "IMPORT / EXPORT":
                         f"F{idx+2}",
                         int(r["GOOD QTY."])
                     )
-                    updated += 1
-                else:
-                    skipped += 1
-
-            st.success(f"✅ Updated: {updated} | Skipped(New): {skipped}")
+            st.success("✅ Buffer stock updated safely")
             st.rerun()
