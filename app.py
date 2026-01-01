@@ -53,8 +53,14 @@ creds = Credentials.from_service_account_info(
 
 gc = gspread.authorize(creds)
 
-buffer_ws = gc.open_by_key(BUFFER_SHEET_ID).sheet1
-log_ws    = gc.open_by_key(LOG_SHEET_ID).sheet1
+buffer_ws = gc.open_by_key(
+    st.secrets["google_sheets"]["buffer_sheet_id"]
+).sheet1
+
+log_ws = gc.open_by_key(
+    st.secrets["google_sheets"]["inout_sheet_id"]
+).sheet1
+
 
 # =====================================================
 # LOAD DATA
@@ -210,3 +216,4 @@ elif menu == "STOCK OUT":
 elif menu == "REPORT":
     st.markdown("<div class='card'><h3>IN / OUT REPORT</h3></div>", unsafe_allow_html=True)
     st.dataframe(log_df, use_container_width=True)
+
