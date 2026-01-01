@@ -61,30 +61,12 @@ buffer_df = load_buffer()
 log_df = load_log()
 
 # =====================================================
-# LOGIN HANDLING
+# LOGIN
 # =====================================================
 if "login" not in st.session_state:
     st.session_state.login = False
 
-# LOGOUT BUTTON (SIDEBAR)
-if st.sidebar.button("🔓 LOGOUT"):
-    # Clear session keys safely
-    for key in ["login", "user", "role"]:
-        if key in st.session_state:
-            del st.session_state[key]
-
-    # Show success message
-    st.sidebar.success("✅ Logged out successfully!")
-
-    # Optional small delay
-    import time
-    time.sleep(0.3)
-
-    # Rerun app to show login page
-    st.experimental_rerun()
-
-# IF NOT LOGGED IN → SHOW LOGIN PAGE
-if not st.session_state.get("login", False):
+if not st.session_state.login:
     st.title("🔐 LOGIN")
     user = st.selectbox("USER", ["TSD", "HOD"])
     pwd = st.text_input("PASSWORD", type="password")
@@ -92,23 +74,13 @@ if not st.session_state.get("login", False):
     if st.button("LOGIN"):
         ok, role = authenticate(user, pwd)
         if ok:
-            # Save session keys
-            st.session_state["login"] = True
-            st.session_state["user"] = user
-            st.session_state["role"] = role
-
-            # Rerun to load main app
-            st.experimental_rerun()
+            st.session_state.login = True
+            st.session_state.user = user
+            st.session_state.role = role
+            st.rerun()
         else:
             st.error("❌ INVALID LOGIN")
-    # Stop execution until login
     st.stop()
-
-# =====================================================
-# SIDEBAR INFO (SAFE ACCESS)
-# =====================================================
-st.sidebar.markdown(f"**USER:** {st.session_state.get('user','')}")
-st.sidebar.markdown(f"**ROLE:** {st.session_state.get('role','')}")
 
 # =====================================================
 # SIDEBAR
@@ -328,11 +300,5 @@ elif menu == "IMPORT / EXPORT":
                     )
             st.success("✅ Buffer stock updated safely")
             st.rerun()
-
-
-
-
-
-
 
 
