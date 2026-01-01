@@ -8,17 +8,15 @@ from google.oauth2.service_account import Credentials
 from io import BytesIO
 
 # =====================================================
-# PAGE CONFIG
+# CONFIG
 # =====================================================
 st.set_page_config(
-    page_title="BUFFER STOCK MANAGEMENT SYSTEM vFINAL+",
+    page_title="BUFFER STOCK MANAGEMENT SYSTEM vULTIMATE",
     page_icon="📦",
     layout="wide"
 )
 
-# =====================================================
-# CONSTANTS
-# =====================================================
+LOW_STOCK_LIMIT = 5
 OPERATOR_NAME = "Santosh Kumar"
 
 HOD_LIST = ["Pankaj Sir", "Kevin Sir", "Aiyousha", "Other"]
@@ -26,8 +24,6 @@ HANDOVER_LIST = ["Santosh Kumar", "Store", "Security", "Other"]
 FLOOR_LIST = ["GF", "1F", "2F", "3F", "Other"]
 REMARK_LIST = ["Routine Use", "Replacement", "New Requirement", "Other"]
 DELIVERY_TAT_LIST = ["Same Day", "Next Day", "Other"]
-
-LOW_STOCK_DEFAULT = 10
 
 # =====================================================
 # GOOGLE SHEETS
@@ -38,8 +34,7 @@ scope = [
 ]
 
 creds = Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"],
-    scopes=scope
+    st.secrets["gcp_service_account"], scopes=scope
 )
 gc = gspread.authorize(creds)
 
@@ -52,13 +47,13 @@ log_ws = gc.open_by_key(
 ).sheet1
 
 # =====================================================
-# LOAD DATA
+# LOAD DATA (SAFE)
 # =====================================================
 def load_buffer():
     df = pd.DataFrame(buffer_ws.get_all_records())
+    if df.empty:
+        return df
     df["GOOD QTY."] = pd.to_numeric(df["GOOD QTY."], errors="coerce").fillna(0)
-    if "LOW STOCK" not in df.columns:
-        df["LOW STOCK"] = LOW_STOCK_DEFAULT
     return df
 
 def load_log():
@@ -100,7 +95,15 @@ if not st.session_state.login:
 # =====================================================
 menu = st.sidebar.radio(
     "MENU",
-    ["DASHBOARD", "FULL BUFFER STOCK", "STOCK IN", "STOCK OUT", "REPORT"]
+    [
+        "DASHBOARD",
+        "FULL BUFFER STOCK",
+        "LOW STOCK ALERT",
+        "STOCK IN",
+        "STOCK OUT",
+        "REPORT",
+        "IMPORT / EXPORT"
+    ]
 )
 
 # =====================================================
@@ -110,35 +113,47 @@ if menu == "DASHBOARD":
 
     st.metric("📦 TOTAL STOCK", int(buffer_df["GOOD QTY."].sum()))
 
-    low_stock = buffer_df[buffer_df["GOOD QTY."] <= buffer_df["LOW STOCK"]]
-    st.subheader("⚠ LOW STOCK MATERIAL ALERT")
-    st.dataframe(low_stock, use_container_width=True)
+    st.subheader("⚠ LOW STOCK MATERIAL")
+    st.dataframe(
+        buffer_df[buffer_df["GOOD QTY."] <= LOW_STOCK_LIMIT],
+        use_container_width=True
+    )
 
-    last_3_months = datetime.now() - DateOffset(months=3)
-    cons = log_df[(log_df["DATE"] >= last_3_months) & (log_df["OUT QTY"] > 0)]
+    if not log_df.empty:
+        last_3 = datetime.now() - DateOffset(months=3)
+        cons = log_df[
+            (log_df["DATE"] >= last_3) & (log_df["OUT QTY"] > 0)
+        ]
 
-    summary = cons.groupby(
-        ["MATERIAL ASSIGNING BASE", "DESCRIPTION", "TYPE", "PART CODE"],
-        as_index=False
-    )["OUT QTY"].sum()
+        summary = cons.groupby(
+            ["MATERIAL ASSIGNING BASE", "DESCRIPTION", "TYPE", "PART CODE"],
+            as_index=False
+        )["OUT QTY"].sum()
 
-    st.subheader("📉 LAST 3 MONTHS CONSUMPTION")
-    st.dataframe(summary, use_container_width=True)
+        st.subheader("📉 LAST 3 MONTHS CONSUMPTION")
+        st.dataframe(summary, use_container_width=True)
 
 # =====================================================
 # FULL BUFFER STOCK
 # =====================================================
 elif menu == "FULL BUFFER STOCK":
-
     st.dataframe(buffer_df, use_container_width=True)
 
-    # EXPORT
-    output = BytesIO()
-    buffer_df.to_excel(output, index=False)
+    out = BytesIO()
+    buffer_df.to_excel(out, index=False)
     st.download_button(
         "⬇ Download Buffer Stock Excel",
-        output.getvalue(),
+        out.getvalue(),
         "buffer_stock.xlsx"
+    )
+
+# =====================================================
+# LOW STOCK ALERT
+# =====================================================
+elif menu == "LOW STOCK ALERT":
+    st.dataframe(
+        buffer_df[buffer_df["GOOD QTY."] <= LOW_STOCK_LIMIT],
+        use_container_width=True
     )
 
 # =====================================================
@@ -163,7 +178,6 @@ elif menu == "STOCK IN":
     qty = st.number_input("IN QTY", min_value=1, step=1)
     gate = st.text_input("GATE PASS NO")
     tat = st.selectbox("DELIVERY TAT", DELIVERY_TAT_LIST)
-
     applicant = st.selectbox("APPLICANT HOD", HOD_LIST)
     handover = st.selectbox("HANDOVER PERSON", HANDOVER_LIST)
     floor = st.selectbox("FLOOR", FLOOR_LIST)
@@ -210,9 +224,8 @@ elif menu == "STOCK OUT":
         st.warning("⚠ No stock available")
         st.stop()
 
-    qty = st.number_input("OUT QTY", min_value=1, max_value=current, step=1)
+    qty = st.number_input("OUT QTY", 1, current)
     gate = st.text_input("GATE PASS NO")
-
     applicant = st.selectbox("APPLICANT HOD", HOD_LIST)
     handover = st.selectbox("HANDOVER PERSON", HANDOVER_LIST)
     floor = st.selectbox("FLOOR", FLOOR_LIST)
@@ -248,13 +261,40 @@ elif menu == "STOCK OUT":
 # REPORT
 # =====================================================
 elif menu == "REPORT":
-
     st.dataframe(log_df, use_container_width=True)
 
     out = BytesIO()
     log_df.to_excel(out, index=False)
     st.download_button(
-        "⬇ Download Full Report Excel",
+        "⬇ Download Report Excel",
         out.getvalue(),
-        "stock_report.xlsx"
+        "in_out_report.xlsx"
     )
+
+# =====================================================
+# IMPORT BUFFER (SAFE)
+# =====================================================
+elif menu == "IMPORT / EXPORT":
+
+    file = st.file_uploader("Upload Buffer Stock Excel", type=["xlsx"])
+    if file:
+        upload_df = pd.read_excel(file)
+
+        if st.button("UPDATE BUFFER STOCK"):
+            updated = 0
+            skipped = 0
+
+            for _, r in upload_df.iterrows():
+                match = buffer_df[buffer_df["PART CODE"] == r["PART CODE"]]
+                if not match.empty:
+                    idx = match.index[0]
+                    buffer_ws.update(
+                        f"F{idx+2}",
+                        int(r["GOOD QTY."])
+                    )
+                    updated += 1
+                else:
+                    skipped += 1
+
+            st.success(f"✅ Updated: {updated} | Skipped(New): {skipped}")
+            st.rerun()
