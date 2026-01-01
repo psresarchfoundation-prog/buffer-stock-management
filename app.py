@@ -5,7 +5,6 @@ from pandas.tseries.offsets import DateOffset
 from auth import authenticate
 import gspread
 from google.oauth2.service_account import Credentials
-from io import BytesIO
 
 # =====================================================
 # PAGE CONFIG
@@ -142,15 +141,13 @@ if menu == "DASHBOARD":
 
     last_3_months = datetime.now() - DateOffset(months=3)
     cons = log_df[(log_df["DATE"] >= last_3_months) & (log_df["OUT QTY"] > 0)]
-    summary = cons.groupby(
-        ["PART CODE", "DESCRIPTION"], as_index=False
-    )["OUT QTY"].sum()
+    summary = cons.groupby(["PART CODE"], as_index=False)["OUT QTY"].sum()
 
     st.subheader("📉 LAST 3 MONTHS CONSUMPTION")
     st.dataframe(summary, use_container_width=True)
 
 # =====================================================
-# FULL BUFFER
+# FULL BUFFER STOCK
 # =====================================================
 elif menu == "FULL BUFFER STOCK":
     st.markdown("<div class='card'><h3>FULL BUFFER STOCK</h3></div>", unsafe_allow_html=True)
@@ -180,32 +177,45 @@ elif menu == "STOCK IN":
             datetime.now().strftime("%H:%M:%S"),
             datetime.today().strftime("%B"),
             datetime.today().isocalendar()[1],
-            gate, tat, row["BASE (LOCAL LANGUAGE)"],
-            row["MATERIAL DESCRIPTION (CHINA)"], row["TYPES"],
-            part, current, qty, 0, current + qty,
-            applicant, OPERATOR_NAME, OPERATOR_NAME,
-            floor, remark, st.session_state.user
+            gate, tat,
+            row.get("BASE (LOCAL LANGUAGE)", ""),
+            row.get("MATERIAL DESCRIPTION (CHINA)", ""),
+            row.get("TYPES", ""),
+            part,
+            current,
+            qty,
+            0,
+            current + qty,
+            applicant,
+            OPERATOR_NAME,
+            OPERATOR_NAME,
+            floor,
+            remark,
+            st.session_state.user
         ])
 
         st.success("✅ STOCK IN UPDATED")
         st.rerun()
 
 # =====================================================
-# STOCK OUT
+# STOCK OUT (FIXED – NO CRASH)
 # =====================================================
 elif menu == "STOCK OUT":
     part = st.selectbox("PART CODE", buffer_df["PART CODE"].unique())
     row = buffer_df[buffer_df["PART CODE"] == part].iloc[0]
     current = int(row["GOOD QTY."])
 
-    qty = st.number_input("OUT QTY", min_value=1, max_value=current, step=1)
-    
-qty = st.number_input(
-    "OUT QTY",
-    min_value=1,
-    max_value=int(current),
-    step=1
-)
+    if current <= 0:
+        st.warning("⚠ No stock available. STOCK OUT not allowed.")
+        st.stop()
+
+    qty = st.number_input(
+        "OUT QTY",
+        min_value=1,
+        max_value=int(current),
+        step=1
+    )
+
     gate = st.text_input("GATE PASS NO")
     applicant = st.selectbox("APPLICANT HOD", HOD_LIST)
     floor = st.selectbox("FLOOR", FLOOR_LIST)
@@ -220,11 +230,21 @@ qty = st.number_input(
             datetime.now().strftime("%H:%M:%S"),
             datetime.today().strftime("%B"),
             datetime.today().isocalendar()[1],
-            gate, "OUT", row["BASE (LOCAL LANGUAGE)"],
-            row["MATERIAL DESCRIPTION (CHINA)"], row["TYPES"],
-            part, current, 0, qty, current - qty,
-            applicant, OPERATOR_NAME, OPERATOR_NAME,
-            floor, remark, st.session_state.user
+            gate, "OUT",
+            row.get("BASE (LOCAL LANGUAGE)", ""),
+            row.get("MATERIAL DESCRIPTION (CHINA)", ""),
+            row.get("TYPES", ""),
+            part,
+            current,
+            0,
+            qty,
+            current - qty,
+            applicant,
+            OPERATOR_NAME,
+            OPERATOR_NAME,
+            floor,
+            remark,
+            st.session_state.user
         ])
 
         st.success("✅ STOCK OUT UPDATED")
@@ -236,5 +256,3 @@ qty = st.number_input(
 elif menu == "REPORT":
     st.markdown("<div class='card'><h3>IN / OUT REPORT</h3></div>", unsafe_allow_html=True)
     st.dataframe(log_df, use_container_width=True)
-
-
