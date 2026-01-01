@@ -198,10 +198,8 @@ elif menu == "STOCK OUT":
     row = buffer_df[buffer_df["PART CODE"] == part].iloc[0]
     current = int(row["GOOD QTY."])
 
-    if current <= 0:
-    st.warning("⚠ No stock available. STOCK OUT not allowed.")
-    st.stop()
-
+    qty = st.number_input("OUT QTY", min_value=1, max_value=current, step=1)
+    
 qty = st.number_input(
     "OUT QTY",
     min_value=1,
@@ -238,4 +236,5 @@ qty = st.number_input(
 elif menu == "REPORT":
     st.markdown("<div class='card'><h3>IN / OUT REPORT</h3></div>", unsafe_allow_html=True)
     st.dataframe(log_df, use_container_width=True)
+
 
