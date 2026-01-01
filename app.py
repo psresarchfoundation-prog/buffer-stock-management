@@ -82,18 +82,28 @@ if not st.session_state.login:
             st.error("❌ INVALID LOGIN")
     st.stop()
 
+# ------------------ SIDEBAR INFO & LOGOUT ------------------
+user = st.session_state.get("user", "")
+role = st.session_state.get("role", "")
+
+st.sidebar.markdown(f"**USER:** {user}")
+st.sidebar.markdown(f"**ROLE:** {role}")
+
 if st.sidebar.button("🔓 LOGOUT"):
-    # 1️⃣ Clear login-related session keys
+    # Show success message first
+    st.sidebar.success("✅ Logged out successfully!")
+
+    # Clear all login/session keys
     for key in ["login", "user", "role"]:
         if key in st.session_state:
             del st.session_state[key]
 
-    # 2️⃣ Show message before rerun
-    st.sidebar.success("✅ Logged out successfully!")
+    # Wait a fraction to let message render (optional)
+    import time
+    time.sleep(0.5)
 
-    # 3️⃣ Rerun the app to show login page
+    # Rerun app to go back to login screen
     st.experimental_rerun()
-
 
 # =====================================================
 # SIDEBAR
@@ -313,6 +323,7 @@ elif menu == "IMPORT / EXPORT":
                     )
             st.success("✅ Buffer stock updated safely")
             st.rerun()
+
 
 
 
