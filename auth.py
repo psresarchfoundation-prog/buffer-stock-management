@@ -1,10 +1,10 @@
 USERS = {
     "TSD": {
-        "password": "TSDwh@2026",
+        "password": "TSD@123",
         "role": "TSD"
     },
     "HOD": {
-        "password": "HODwh@2026",
+        "password": "HOD@123",
         "role": "HOD"
     }
 }
