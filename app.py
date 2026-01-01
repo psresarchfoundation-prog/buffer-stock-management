@@ -198,7 +198,16 @@ elif menu == "STOCK OUT":
     row = buffer_df[buffer_df["PART CODE"] == part].iloc[0]
     current = int(row["GOOD QTY."])
 
-    qty = st.number_input("OUT QTY", min_value=1, max_value=current, step=1)
+    if current <= 0:
+    st.warning("⚠ No stock available. STOCK OUT not allowed.")
+    st.stop()
+
+qty = st.number_input(
+    "OUT QTY",
+    min_value=1,
+    max_value=int(current),
+    step=1
+)
     gate = st.text_input("GATE PASS NO")
     applicant = st.selectbox("APPLICANT HOD", HOD_LIST)
     floor = st.selectbox("FLOOR", FLOOR_LIST)
@@ -229,3 +238,4 @@ elif menu == "STOCK OUT":
 elif menu == "REPORT":
     st.markdown("<div class='card'><h3>IN / OUT REPORT</h3></div>", unsafe_allow_html=True)
     st.dataframe(log_df, use_container_width=True)
+
