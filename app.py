@@ -81,18 +81,19 @@ if not st.session_state.login:
         else:
             st.error("❌ INVALID LOGIN")
     st.stop()
-# ------------------ SIDEBAR INFO & LOGOUT ------------------
-st.sidebar.markdown(f"**USER:** {st.session_state.get('user', '')}")
-st.sidebar.markdown(f"**ROLE:** {st.session_state.get('role', '')}")
 
 if st.sidebar.button("🔓 LOGOUT"):
-    # Sirf login related keys reset karo
-    st.session_state.login = False
-    if 'user' in st.session_state: del st.session_state['user']
-    if 'role' in st.session_state: del st.session_state['role']
+    # 1️⃣ Clear login-related session keys
+    for key in ["login", "user", "role"]:
+        if key in st.session_state:
+            del st.session_state[key]
 
-    st.success("Logged out successfully!")
+    # 2️⃣ Show message before rerun
+    st.sidebar.success("✅ Logged out successfully!")
+
+    # 3️⃣ Rerun the app to show login page
     st.experimental_rerun()
+
 
 # =====================================================
 # SIDEBAR
@@ -312,6 +313,7 @@ elif menu == "IMPORT / EXPORT":
                     )
             st.success("✅ Buffer stock updated safely")
             st.rerun()
+
 
 
 
