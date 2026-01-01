@@ -82,13 +82,17 @@ if not st.session_state.login:
             st.error("❌ INVALID LOGIN")
     st.stop()
 # ------------------ SIDEBAR INFO & LOGOUT ------------------
-st.sidebar.markdown(f"**USER:** {st.session_state.user}")
-st.sidebar.markdown(f"**ROLE:** {st.session_state.role}")
+st.sidebar.markdown(f"**USER:** {st.session_state.get('user', '')}")
+st.sidebar.markdown(f"**ROLE:** {st.session_state.get('role', '')}")
 
 if st.sidebar.button("🔓 LOGOUT"):
-    st.session_state.clear()  # saari session info clear
+    # Sirf login related keys reset karo
+    st.session_state.login = False
+    if 'user' in st.session_state: del st.session_state['user']
+    if 'role' in st.session_state: del st.session_state['role']
+
     st.success("Logged out successfully!")
-    st.experimental_rerun()   # app rerun kar do login page pe redirect
+    st.experimental_rerun()
 
 # =====================================================
 # SIDEBAR
@@ -308,6 +312,7 @@ elif menu == "IMPORT / EXPORT":
                     )
             st.success("✅ Buffer stock updated safely")
             st.rerun()
+
 
 
 
