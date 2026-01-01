@@ -112,45 +112,19 @@ if menu == "DASHBOARD":
     box-shadow:0 4px 12px rgba(0,0,0,0.08);
     margin-bottom:20px;
 ">
-<h3 style="margin-top:0;">🛠 Tools & Equipments Report</h3>
+<h3 style="margin-top:0;">🛠 工具及设备报告</h3>
 
 <b>保密级别 Confidentiality：</b><br>
-☐ 绝密 <b>TOP SECRET</b> &nbsp;&nbsp;
-☐ 机密 <b>CONFIDENTIAL</b> &nbsp;&nbsp;
-<b>■ 内部公开 INTERNAL USE</b> &nbsp;&nbsp;
-☐ 外部公开 <b>PUBLIC</b>
+■ 内部公开 INTERNAL USE
 <br><br>
 
-<b>责 任 人 Owner：</b> 叶芳<br>
+<b>责任人 Owner：</b> 叶芳<br>
 <b>编制部门 Prepared by：</b> 客户服务中心 (CC)<br>
 <b>发布日期 Release Date：</b> 2024
 <hr>
 
-<b>保密要求 Confidentiality Requirements</b><br><br>
-
-<b>绝密 TOP SECRET：</b><br>
-未经传音控股书面授权，不得复制、存储、引用或传播文件的任何片断。<br><br>
-
-<b>机密 CONFIDENTIAL：</b><br>
-复制、存储、引用或传播文件的任何片断，需经部门主管授权。<br><br>
-
-<b>内部公开 INTERNAL USE：</b><br>
-仅限公司内部使用，如需分享到公司外部，需经部门主管授权。<br><br>
-
-<b>外部公开 PUBLIC：</b><br>
-无保密要求。<br><br>
-
-<hr>
-
-<b>English Version</b><br><br>
-
-<b>TOP SECRET:</b> Any fragment herein shall not be copied, saved, quoted or spread without TRANSSION HOLDINGS' written authorization.<br><br>
-
-<b>CONFIDENTIAL:</b> Any fragment herein shall not be copied, saved, quoted or spread without department manager's authorization.<br><br>
-
-<b>INTERNAL USE:</b> For internal use only. It shall not be shared to outside without department manager's authorization.<br><br>
-
-<b>PUBLIC:</b> Open.
+<b>说明：</b><br>
+仅限公司内部使用，如需分享到公司外部，需经部门主管授权。
 </div>
 """, unsafe_allow_html=True)
 
@@ -326,4 +300,5 @@ elif menu == "IMPORT / EXPORT":
                     )
             st.success("✅ Buffer stock updated safely")
             st.rerun()
+
 
