@@ -11,7 +11,7 @@ from io import BytesIO
 # PAGE CONFIG
 # =====================================================
 st.set_page_config(
-    page_title="BUFFER STOCK MANAGEMENT SYSTEM v4.0",
+    page_title="BUFFER STOCK MANAGEMENT SYSTEM v5.0",
     page_icon="📦",
     layout="wide"
 )
@@ -42,7 +42,7 @@ BUFFER_SHEET_ID = "13XzWDCbuA7ZWZLyjezLCBm7oFxb35me6Z53RozF9yaE"
 INOUT_SHEET_ID  = "12Hnk3k2D3JReYZnbsCYCbvIbTb23zfbE5UuuaEj4UTg"
 
 # =====================================================
-# GOOGLE AUTH (STREAMLIT CLOUD SAFE)
+# GOOGLE AUTH
 # =====================================================
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -173,7 +173,7 @@ if menu == "DASHBOARD":
     st.dataframe(summary, use_container_width=True)
 
 # =====================================================
-# FULL BUFFER
+# FULL BUFFER STOCK
 # =====================================================
 elif menu == "FULL BUFFER STOCK":
     st.markdown("<div class='card'><h3>📦 FULL BUFFER STOCK</h3></div>", unsafe_allow_html=True)
@@ -188,6 +188,9 @@ elif menu == "STOCK IN":
 
     part = st.selectbox("PART CODE", buffer_df["PART CODE"].unique())
     row = buffer_df[buffer_df["PART CODE"] == part].iloc[0]
+
+    current = int(row["GOOD QTY."])
+    st.info(f"CURRENT STOCK: {current}")
 
     qty = st.number_input("IN QTY", min_value=1, step=1)
     remark = st.text_input("REMARK")
@@ -232,11 +235,19 @@ elif menu == "STOCK OUT":
     part = st.selectbox("PART CODE", buffer_df["PART CODE"].unique())
     row = buffer_df[buffer_df["PART CODE"] == part].iloc[0]
     current = int(row["GOOD QTY."])
+    st.info(f"CURRENT STOCK: {current}")
 
-    qty = st.number_input("OUT QTY", min_value=1, max_value=current, step=1)
+    if current > 0:
+        qty = st.number_input("OUT QTY", min_value=1, max_value=current, step=1)
+        remove_enabled = True
+    else:
+        st.warning("⚠️ STOCK IS ZERO, CANNOT REMOVE")
+        qty = 0
+        remove_enabled = False
+
     remark = st.text_input("REMARK")
 
-    if st.button("REMOVE STOCK"):
+    if st.button("REMOVE STOCK") and remove_enabled:
         idx = buffer_df[buffer_df["PART CODE"] == part].index[0]
         prev = buffer_df.at[idx, "GOOD QTY."]
         buffer_df.at[idx, "GOOD QTY."] -= qty
